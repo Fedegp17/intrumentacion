@@ -4,8 +4,7 @@ import json
 import threading
 import time
 import os
-import pandas as pd
-import numpy as np
+import csv
 
 app = Flask(__name__)
 
@@ -1220,19 +1219,26 @@ def get_chart_data():
                 'message': 'No sensor data available'
             })
         
-        # Read CSV data
-        df = pd.read_csv(SENSOR_DATA_FILE)
-        
-        # Get last 20 records for chart
-        df_recent = df.tail(20)
-        
-        # Prepare data for chart
+        # Read CSV data using native CSV module
         chart_data = {
             'status': 'success',
-            'labels': df_recent['timestamp'].tolist(),
-            'temperature': df_recent['temperature'].tolist(),
-            'humidity': df_recent['humidity'].tolist()
+            'labels': [],
+            'temperature': [],
+            'humidity': []
         }
+        
+        if os.path.exists(SENSOR_DATA_FILE):
+            with open(SENSOR_DATA_FILE, 'r') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+                
+                # Get last 20 records for chart
+                recent_rows = rows[-20:] if len(rows) > 20 else rows
+                
+                for row in recent_rows:
+                    chart_data['labels'].append(row['timestamp'])
+                    chart_data['temperature'].append(float(row['temperature']))
+                    chart_data['humidity'].append(float(row['humidity']))
         
         return jsonify(chart_data)
         
