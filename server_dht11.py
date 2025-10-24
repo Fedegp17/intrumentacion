@@ -11,13 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 load_dotenv('supabase.env')
 
-# Importar Supabase solo si está disponible
-try:
-    from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    print("⚠️ Supabase no disponible, usando solo CSV")
-    SUPABASE_AVAILABLE = False
+# Supabase no disponible - usando solo CSV
+SUPABASE_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -383,6 +378,46 @@ def home():
             .chart-header {{
                 display: flex;
                 align-items: center;
+                justify-content: space-between;
+                margin-bottom: 1.5rem;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }}
+            
+            .chart-controls {{
+                display: flex;
+                gap: 0.5rem;
+            }}
+            
+            .btn-clear-chart {{
+                background: linear-gradient(135deg, #dc3545, #c82333);
+                color: white;
+                border: none;
+                padding: 0.75rem 1.5rem;
+                border-radius: 12px;
+                font-weight: 600;
+                font-size: 0.9rem;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }}
+            
+            .btn-clear-chart:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+                background: linear-gradient(135deg, #c82333, #a71e2a);
+            }}
+            
+            .btn-clear-chart:active {{
+                transform: translateY(0);
+            }}
+            
+            .chart-header {{
+                display: flex;
+                align-items: center;
                 gap: 1rem;
                 margin-bottom: 2rem;
                 padding-bottom: 1rem;
@@ -681,6 +716,12 @@ def home():
                         <h3 class="card-title">Datos Históricos</h3>
                         <p class="card-subtitle">Gráfica de Temperatura y Humedad</p>
                     </div>
+                    <div class="chart-controls">
+                        <button onclick="clearChartData()" class="btn-clear-chart">
+                            <i class="fas fa-trash-alt"></i>
+                            Limpiar Datos
+                        </button>
+                    </div>
                 </div>
                 <div class="chart-content">
                     <canvas id="sensorChart"></canvas>
@@ -708,31 +749,39 @@ def home():
                             label: '🌡️ Temperature (°C)',
                             data: [],
                             borderColor: '#dc3545',
-                            backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                            backgroundColor: 'rgba(220, 53, 69, 0.15)',
                             borderWidth: 3,
                             tension: 0.4,
                             yAxisID: 'y',
                             pointBackgroundColor: '#dc3545',
                             pointBorderColor: '#ffffff',
-                            pointBorderWidth: 2,
-                            pointRadius: 6,
-                            pointHoverRadius: 8,
-                            fill: true
+                            pointBorderWidth: 3,
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            pointHoverBackgroundColor: '#dc3545',
+                            pointHoverBorderColor: '#ffffff',
+                            pointHoverBorderWidth: 3,
+                            fill: true,
+                            spanGaps: false
                         }},
                         {{
                             label: '💧 Humidity (%)',
                             data: [],
                             borderColor: '#17a2b8',
-                            backgroundColor: 'rgba(23, 162, 184, 0.2)',
+                            backgroundColor: 'rgba(23, 162, 184, 0.15)',
                             borderWidth: 3,
                             tension: 0.4,
                             yAxisID: 'y1',
                             pointBackgroundColor: '#17a2b8',
                             pointBorderColor: '#ffffff',
-                            pointBorderWidth: 2,
-                            pointRadius: 6,
-                            pointHoverRadius: 8,
-                            fill: true
+                            pointBorderWidth: 3,
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            pointHoverBackgroundColor: '#17a2b8',
+                            pointHoverBorderColor: '#ffffff',
+                            pointHoverBorderWidth: 3,
+                            fill: true,
+                            spanGaps: false
                         }}
                     ]
                 }},
@@ -745,34 +794,50 @@ def home():
                     }},
                     animations: {{
                         tension: {{
-                            duration: 1000,
-                            easing: 'linear',
+                            duration: 2000,
+                            easing: 'easeInOutQuart',
                             from: 1,
                             to: 0,
-                            loop: true
+                            loop: false
+                        }},
+                        x: {{
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
+                        }},
+                        y: {{
+                            duration: 1000,
+                            easing: 'easeInOutQuart'
                         }}
                     }},
                     scales: {{
                         x: {{
                             display: true,
                             grid: {{
-                                color: 'rgba(0,0,0,0.1)',
-                                borderColor: 'rgba(0,0,0,0.2)'
+                                color: 'rgba(0,0,0,0.08)',
+                                drawBorder: false,
+                                lineWidth: 1
                             }},
                             ticks: {{
                                 color: '#666',
                                 font: {{
-                                    size: 12,
-                                    weight: '500'
-                                }}
+                                    size: 11,
+                                    weight: '500',
+                                    family: "'Inter', sans-serif"
+                                }},
+                                maxTicksLimit: 8,
+                                padding: 8
                             }},
                             title: {{
                                 display: true,
-                                text: '⏰ Time',
-                                color: '#666',
+                                text: 'Tiempo',
+                                color: '#333',
                                 font: {{
-                                    size: 14,
-                                    weight: '600'
+                                    size: 12,
+                                    weight: '600',
+                                    family: "'Inter', sans-serif"
+                                }},
+                                padding: {{
+                                    top: 10
                                 }}
                             }}
                         }},
@@ -781,23 +846,27 @@ def home():
                             display: true,
                             position: 'left',
                             grid: {{
-                                color: 'rgba(0,0,0,0.1)',
-                                borderColor: 'rgba(0,0,0,0.2)'
+                                color: 'rgba(0,0,0,0.08)',
+                                drawBorder: false,
+                                lineWidth: 1
                             }},
                             ticks: {{
-                                color: '#666',
+                                color: '#dc3545',
                                 font: {{
-                                    size: 12,
-                                    weight: '500'
-                                }}
+                                    size: 11,
+                                    weight: '500',
+                                    family: "'Inter', sans-serif"
+                                }},
+                                padding: 8
                             }},
                             title: {{
                                 display: true,
-                                text: '🌡️ Temperature (°C)',
-                                color: '#666',
+                                text: 'Temperatura (°C)',
+                                color: '#dc3545',
                                 font: {{
-                                    size: 14,
-                                    weight: '600'
+                                    size: 12,
+                                    weight: '600',
+                                    family: "'Inter', sans-serif"
                                 }}
                             }},
                             min: 0,
@@ -809,22 +878,25 @@ def home():
                             position: 'right',
                             grid: {{
                                 drawOnChartArea: false,
-                                color: 'rgba(0,0,0,0.1)'
+                                drawBorder: false
                             }},
                             ticks: {{
-                                color: '#666',
+                                color: '#17a2b8',
                                 font: {{
-                                    size: 12,
-                                    weight: '500'
-                                }}
+                                    size: 11,
+                                    weight: '500',
+                                    family: "'Inter', sans-serif"
+                                }},
+                                padding: 8
                             }},
                             title: {{
                                 display: true,
-                                text: '💧 Humidity (%)',
-                                color: '#666',
+                                text: 'Humedad (%)',
+                                color: '#17a2b8',
                                 font: {{
-                                    size: 14,
-                                    weight: '600'
+                                    size: 12,
+                                    weight: '600',
+                                    family: "'Inter', sans-serif"
                                 }}
                             }},
                             min: 0,
@@ -833,46 +905,55 @@ def home():
                     }},
                     plugins: {{
                         title: {{
-                            display: true,
-                            text: '📊 DHT11 Real-time Sensor Data',
-                            color: '#1e3c72',
-                            font: {{
-                                size: 18,
-                                weight: '700'
-                            }},
-                            padding: {{
-                                top: 20,
-                                bottom: 30
-                            }}
+                            display: false
                         }},
                         legend: {{
                             display: true,
                             position: 'top',
+                            align: 'start',
                             labels: {{
                                 usePointStyle: true,
+                                pointStyle: 'circle',
                                 padding: 20,
                                 font: {{
-                                    size: 14,
-                                    weight: '600'
+                                    size: 13,
+                                    weight: '600',
+                                    family: "'Inter', sans-serif"
                                 }},
-                                color: '#1e3c72'
+                                color: '#333',
+                                boxWidth: 12,
+                                boxHeight: 12
                             }}
                         }},
                         tooltip: {{
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            titleColor: '#1e3c72',
-                            bodyColor: '#1e3c72',
-                            borderColor: 'rgba(0,0,0,0.1)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(255, 255, 255, 0.2)',
                             borderWidth: 1,
-                            cornerRadius: 10,
+                            cornerRadius: 12,
                             displayColors: true,
                             titleFont: {{
-                                size: 14,
-                                weight: '600'
+                                size: 13,
+                                weight: 'bold',
+                                family: "'Inter', sans-serif"
                             }},
                             bodyFont: {{
-                                size: 13,
-                                weight: '500'
+                                size: 12,
+                                family: "'Inter', sans-serif"
+                            }},
+                            padding: 12,
+                            titleSpacing: 4,
+                            bodySpacing: 4,
+                            callbacks: {{
+                                title: function(context) {{
+                                    return '📊 ' + context[0].label;
+                                }},
+                                label: function(context) {{
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y;
+                                    return label + ': ' + value.toFixed(1);
+                                }}
                             }}
                         }}
                     }}
@@ -903,6 +984,27 @@ def home():
                     .catch(error => {{
                         console.error('Error loading chart data:', error);
                     }});
+            }}
+
+            // Clear chart data function
+            function clearChartData() {{
+                if (confirm('¿Estás seguro de que quieres limpiar todos los datos del gráfico? Esta acción no se puede deshacer.')) {{
+                    // Clear chart data
+                    chart.data.labels = [];
+                    chart.data.datasets[0].data = [];
+                    chart.data.datasets[1].data = [];
+                    chart.update();
+                    
+                    // Show success message
+                    const originalText = document.querySelector('.btn-clear-chart').innerHTML;
+                    document.querySelector('.btn-clear-chart').innerHTML = '<i class="fas fa-check"></i> Datos Limpiados';
+                    document.querySelector('.btn-clear-chart').style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                    
+                    setTimeout(() => {{
+                        document.querySelector('.btn-clear-chart').innerHTML = originalText;
+                        document.querySelector('.btn-clear-chart').style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+                    }}, 2000);
+                }}
             }}
 
             // Check temperature alert
