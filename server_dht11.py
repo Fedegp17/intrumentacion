@@ -1425,8 +1425,7 @@ def led_status():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Vercel compatibility
-def handler(request):
-    return app(request)
+app = app
 
 if __name__ == '__main__':
     print("Starting ESP32 DHT11 Monitor...")

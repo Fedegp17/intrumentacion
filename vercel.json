@@ -11,8 +11,5 @@
       "src": "/(.*)",
       "dest": "server_dht11.py"
     }
-  ],
-  "env": {
-    "PYTHONPATH": "."
-  }
+  ]
 }
