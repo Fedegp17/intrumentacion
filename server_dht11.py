@@ -807,7 +807,7 @@ def home():
                     </div>
                     <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
                         <div class="metric-label">Próxima Lectura Automática</div>
-                        <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">15 min</div>
+                        <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">1 hora</div>
                     </div>
                 </div>
             </div>
@@ -1342,10 +1342,10 @@ def home():
                 // Check connection status periodically
                 setInterval(checkConnectionStatus, 5000); // Every 5 seconds
                 
-                // Auto-refresh every 30 seconds
+                // Auto-refresh every hour
                 setInterval(() => {{
                     location.reload();
-                }}, 30000);
+                }}, 3600000);
                 
                 // Load historical data from Supabase
                 loadHistoricalData();
