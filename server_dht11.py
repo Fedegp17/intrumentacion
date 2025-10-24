@@ -11,8 +11,14 @@ from dotenv import load_dotenv
 load_dotenv()
 load_dotenv('supabase.env')
 
-# Supabase no disponible - usando solo CSV
-SUPABASE_AVAILABLE = False
+# Importar Supabase
+try:
+    from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
+    SUPABASE_AVAILABLE = True
+    print("✅ Supabase disponible")
+except ImportError:
+    print("⚠️ Supabase no disponible, usando solo CSV")
+    SUPABASE_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -86,14 +92,15 @@ def save_dht11_data(humidity, temperature):
     # Save to Supabase (primary storage) if available
     if SUPABASE_AVAILABLE:
         try:
-            supabase = get_supabase_client()
-            insert_sensor_data(supabase, temperature, humidity)
-            print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+            success = insert_sensor_data(temperature, humidity, timestamp)
+            if success:
+                print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+            else:
+                print(f"❌ Error guardando en Supabase")
         except Exception as e:
             print(f"⚠️ Error con Supabase, usando CSV: {e}")
-            print(f"DHT11 data saved to CSV: T={temperature}°C, H={humidity}%")
-    else:
-        print(f"DHT11 data saved to CSV: T={temperature}°C, H={humidity}%")
+    
+    print(f"DHT11 data saved: T={temperature}°C, H={humidity}%")
 
 @app.route('/')
 def home():
@@ -561,6 +568,66 @@ def home():
                     padding: 1.5rem;
                 }}
             }}
+            
+            /* Historical Data Styles */
+            .data-table {{
+                overflow-x: auto;
+                margin-top: 1rem;
+            }}
+            
+            .data-table table {{
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            
+            .data-table th {{
+                background: linear-gradient(135deg, #28a745, #20c997);
+                color: white;
+                padding: 1rem;
+                text-align: left;
+                font-weight: 600;
+                font-size: 0.9rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            
+            .data-table td {{
+                padding: 1rem;
+                border-bottom: 1px solid #e9ecef;
+                font-size: 0.9rem;
+            }}
+            
+            .data-table tr:hover {{
+                background-color: #f8f9fa;
+            }}
+            
+            .data-table tr:last-child td {{
+                border-bottom: none;
+            }}
+            
+            .loading-spinner {{
+                text-align: center;
+                padding: 2rem;
+            }}
+            
+            .spinner {{
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #28a745;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 1rem;
+            }}
+            
+            @keyframes spin {{
+                0% {{ transform: rotate(0deg); }}
+                100% {{ transform: rotate(360deg); }}
+            }}
         </style>
     </head>
     <body>
@@ -649,6 +716,45 @@ def home():
                 <h2><i class="fas fa-exclamation-triangle"></i> ¡ALERTA DE TEMPERATURA ALTA!</h2>
                 <p>La temperatura actual es de <span id="alert-temp-value"></span>°C, lo cual es superior a 35°C.</p>
                 <button class="dismiss-btn" onclick="dismissAlert()">Entendido</button>
+            </div>
+            
+            <!-- Historical Data from Supabase -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Datos Históricos</h3>
+                        <p class="card-subtitle">Últimas 10 lecturas desde Supabase</p>
+                    </div>
+                </div>
+                <div id="historical-data-container">
+                    <div class="loading-spinner" id="historical-loading">
+                        <div class="spinner"></div>
+                        <p>Cargando datos históricos...</p>
+                    </div>
+                    <div id="historical-data-content" style="display: none;">
+                        <div class="data-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Fecha/Hora</th>
+                                        <th>Temperatura</th>
+                                        <th>Humedad</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historical-data-table">
+                                    <!-- Data will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="historical-data-error" style="display: none; text-align: center; padding: 2rem; color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>No se pudieron cargar los datos históricos</p>
+                    </div>
+                </div>
             </div>
             
             <!-- Control Cards -->
@@ -1240,7 +1346,66 @@ def home():
                 setInterval(() => {{
                     location.reload();
                 }}, 30000);
+                
+                // Load historical data from Supabase
+                loadHistoricalData();
             }});
+            
+            // Function to load historical data from Supabase
+            async function loadHistoricalData() {{
+                try {{
+                    const response = await fetch('/historical-data');
+                    const result = await response.json();
+                    
+                    const loadingEl = document.getElementById('historical-loading');
+                    const contentEl = document.getElementById('historical-data-content');
+                    const errorEl = document.getElementById('historical-data-error');
+                    const tableEl = document.getElementById('historical-data-table');
+                    
+                    if (result.status === 'success' && result.data && result.data.length > 0) {{
+                        // Hide loading and error, show content
+                        loadingEl.style.display = 'none';
+                        errorEl.style.display = 'none';
+                        contentEl.style.display = 'block';
+                        
+                        // Populate table
+                        tableEl.innerHTML = '';
+                        result.data.forEach(row => {{
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${{formatDateTime(row.timestamp)}}</td>
+                                <td style="color: #dc3545; font-weight: 600;">${{row.temperature}}°C</td>
+                                <td style="color: #17a2b8; font-weight: 600;">${{row.humidity}}%</td>
+                            `;
+                            tableEl.appendChild(tr);
+                        }});
+                    }} else {{
+                        // Show error
+                        loadingEl.style.display = 'none';
+                        contentEl.style.display = 'none';
+                        errorEl.style.display = 'block';
+                    }}
+                }} catch (error) {{
+                    console.error('Error loading historical data:', error);
+                    const loadingEl = document.getElementById('historical-loading');
+                    const errorEl = document.getElementById('historical-data-error');
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'block';
+                }}
+            }}
+            
+            // Function to format datetime
+            function formatDateTime(timestamp) {{
+                const date = new Date(timestamp);
+                return date.toLocaleString('es-ES', {{
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }});
+            }}
         </script>
     </body>
     </html>
@@ -1335,6 +1500,42 @@ def view_data():
     except Exception as e:
         return f"Error reading data: {str(e)}"
 
+@app.route('/historical-data')
+def get_historical_data():
+    """Get historical sensor data from Supabase for landing page"""
+    try:
+        if SUPABASE_AVAILABLE:
+            try:
+                # Get last 10 readings from Supabase
+                historical_data = get_sensor_data(limit=10)
+                return jsonify({
+                    'status': 'success',
+                    'data': historical_data,
+                    'source': 'supabase'
+                })
+            except Exception as e:
+                print(f"⚠️ Error obteniendo datos históricos de Supabase: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Error obteniendo datos de Supabase',
+                    'data': [],
+                    'source': 'error'
+                })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Supabase no disponible',
+                'data': [],
+                'source': 'none'
+            })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'data': [],
+            'source': 'error'
+        })
+
 @app.route('/chart-data')
 def get_chart_data():
     """Get DHT11 data for charts from Supabase"""
@@ -1342,8 +1543,7 @@ def get_chart_data():
         # Try to get data from Supabase first if available
         if SUPABASE_AVAILABLE:
             try:
-                supabase = get_supabase_client()
-                supabase_chart_data = get_chart_data(supabase, limit=20)
+                supabase_chart_data = get_chart_data(limit=20)
                 if supabase_chart_data['status'] == 'success':
                     return jsonify(supabase_chart_data)
             except Exception as e:
