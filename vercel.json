@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "server_dht11.py",
+      "src": "principal_code.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "server_dht11.py"
+      "dest": "principal_code.py"
     }
   ]
 }
