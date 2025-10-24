@@ -114,14 +114,15 @@ def home():
     
     return f"""
     <!DOCTYPE html>
-    <html>
+    <html lang="es">
     <head>
-        <title>ESP32 DHT11 Monitor</title>
+        <title>Sistema IoT - Monitoreo Inteligente</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
             
             * {{
                 margin: 0;
@@ -131,339 +132,298 @@ def home():
             
             body {{
                 font-family: 'Inter', sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+                background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
                 min-height: 100vh;
-                padding: 20px;
-                animation: gradientShift 10s ease infinite;
-                background-size: 400% 400%;
+                color: #333;
+                line-height: 1.6;
             }}
             
-            @keyframes gradientShift {{
-                0% {{ background-position: 0% 50%; }}
-                50% {{ background-position: 100% 50%; }}
-                100% {{ background-position: 0% 50%; }}
-            }}
-            
-            .container {{
-                max-width: 1400px;
-                margin: 0 auto;
+            .header {{
                 background: rgba(255, 255, 255, 0.95);
                 backdrop-filter: blur(20px);
-                padding: 40px;
-                border-radius: 25px;
-                box-shadow: 0 25px 50px rgba(0,0,0,0.15);
-                border: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 2rem 0;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.2);
             }}
             
-            h1 {{
-                text-align: center;
-                margin-bottom: 40px;
-                font-size: 3.5em;
-                font-weight: 700;
-                background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                text-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                animation: titleGlow 3s ease-in-out infinite alternate;
+            .header-content {{
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 2rem;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
             }}
             
-            @keyframes titleGlow {{
-                from {{ filter: brightness(1); }}
-                to {{ filter: brightness(1.2); }}
+            .logo {{
+                display: flex;
+                align-items: center;
+                gap: 1rem;
             }}
             
-            .status-card {{
-                background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
-                backdrop-filter: blur(10px);
-                padding: 30px;
-                border-radius: 20px;
-                margin-bottom: 30px;
-                border: 2px solid {status_color};
-                box-shadow: 0 15px 35px rgba(0,0,0,0.1);
-                position: relative;
-                overflow: hidden;
+            .logo i {{
+                font-size: 2.5rem;
+                color: #2a5298;
             }}
             
-            .status-card::before {{
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-                animation: shimmer 3s infinite;
+            .logo-text h1 {{
+                font-size: 2rem;
+                font-weight: 800;
+                color: #1e3c72;
+                margin: 0;
             }}
             
-            @keyframes shimmer {{
-                0% {{ left: -100%; }}
-                100% {{ left: 100%; }}
-            }}
-            
-            .sensor-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-                gap: 30px;
-                margin: 40px 0;
-            }}
-            
-            .sensor-card {{
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 50%, #ff9ff3 100%);
-                color: white;
-                padding: 40px;
-                border-radius: 25px;
-                text-align: center;
-                box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
-                transform: translateY(0);
-                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                position: relative;
-                overflow: hidden;
-            }}
-            
-            .sensor-card:hover {{
-                transform: translateY(-10px) scale(1.02);
-                box-shadow: 0 30px 60px rgba(255, 107, 107, 0.4);
-            }}
-            
-            .sensor-card::before {{
-                content: '';
-                position: absolute;
-                top: -50%;
-                left: -50%;
-                width: 200%;
-                height: 200%;
-                background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-                animation: rotate 4s linear infinite;
-            }}
-            
-            @keyframes rotate {{
-                0% {{ transform: rotate(0deg); }}
-                100% {{ transform: rotate(360deg); }}
-            }}
-            
-            .sensor-card:nth-child(2) {{
-                background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 50%, #093637 100%);
-                box-shadow: 0 20px 40px rgba(78, 205, 196, 0.3);
-            }}
-            
-            .sensor-card:nth-child(2):hover {{
-                box-shadow: 0 30px 60px rgba(78, 205, 196, 0.4);
-            }}
-            
-            .sensor-value {{
-                font-size: 4em;
-                font-weight: 700;
-                margin: 20px 0;
-                text-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                animation: pulse 2s ease-in-out infinite;
-                position: relative;
-                z-index: 1;
-            }}
-            
-            @keyframes pulse {{
-                0%, 100% {{ transform: scale(1); }}
-                50% {{ transform: scale(1.05); }}
-            }}
-            
-            .sensor-label {{
-                font-size: 1.5em;
-                font-weight: 600;
-                opacity: 0.95;
-                position: relative;
-                z-index: 1;
-            }}
-            
-            .sensor-unit {{
-                font-size: 0.7em;
-                opacity: 0.9;
-                position: relative;
-                z-index: 1;
-            }}
-            
-            .info-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 20px;
-                margin: 30px 0;
-            }}
-            
-            .info-item {{
-                background: linear-gradient(135deg, rgba(255,255,255,0.8), rgba(255,255,255,0.6));
-                backdrop-filter: blur(10px);
-                padding: 25px;
-                border-radius: 15px;
-                text-align: center;
-                border: 1px solid rgba(255,255,255,0.3);
-                box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-                transition: all 0.3s ease;
-            }}
-            
-            .info-item:hover {{
-                transform: translateY(-5px);
-                box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-            }}
-            
-            .info-label {{
-                font-weight: 600;
-                color: #4a5568;
-                margin-bottom: 10px;
-                font-size: 1.1em;
-            }}
-            
-            .info-value {{
-                color: #2d3748;
-                font-size: 1.3em;
-                font-weight: 500;
-            }}
-            
-            .chart-container {{
-                margin: 40px 0;
-                background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
-                backdrop-filter: blur(15px);
-                padding: 30px;
-                border-radius: 20px;
-                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                border: 1px solid rgba(255,255,255,0.3);
-            }}
-            
-            .chart-container h3 {{
-                font-size: 2em;
-                font-weight: 600;
-                margin-bottom: 20px;
-                background: linear-gradient(135deg, #667eea, #764ba2);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-                text-align: center;
-            }}
-            
-            .refresh-btn {{
-                background: linear-gradient(135deg, #667eea, #764ba2);
-                color: white;
-                border: none;
-                padding: 15px 30px;
-                border-radius: 50px;
-                cursor: pointer;
-                margin: 15px 10px;
-                font-weight: 600;
-                font-size: 1em;
-                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-            }}
-            
-            .refresh-btn:hover {{
-                transform: translateY(-3px) scale(1.05);
-                box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
-            }}
-            
-            .led-btn {{
-                background: linear-gradient(135deg, #28a745, #20c997);
-                color: white;
-                border: none;
-                padding: 12px 20px;
-                border-radius: 25px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 0.9em;
-                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
-                min-width: 80px;
-            }}
-            
-            .led-btn:hover {{
-                transform: translateY(-2px) scale(1.05);
-                box-shadow: 0 12px 25px rgba(40, 167, 69, 0.4);
-            }}
-            
-            .led-btn:active {{
-                transform: translateY(0) scale(0.95);
+            .logo-text p {{
+                font-size: 0.9rem;
+                color: #666;
+                margin: 0;
             }}
             
             .status-indicator {{
-                display: inline-block;
-                width: 15px;
-                height: 15px;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.5rem 1rem;
+                border-radius: 25px;
+                background: {'rgba(40, 167, 69, 0.1)' if esp32_data['status'] == 'connected' else 'rgba(220, 53, 69, 0.1)'};
+                border: 1px solid {'rgba(40, 167, 69, 0.3)' if esp32_data['status'] == 'connected' else 'rgba(220, 53, 69, 0.3)'};
+            }}
+            
+            .status-dot {{
+                width: 12px;
+                height: 12px;
                 border-radius: 50%;
-                background: {status_color};
-                margin-right: 10px;
-                animation: blink 2s infinite;
-                box-shadow: 0 0 10px {status_color};
+                background: {'#28a745' if esp32_data['status'] == 'connected' else '#dc3545'};
+                animation: pulse 2s infinite;
             }}
             
-            @keyframes blink {{
-                0%, 50% {{ opacity: 1; }}
-                51%, 100% {{ opacity: 0.5; }}
+            @keyframes pulse {{
+                0% {{ opacity: 1; }}
+                50% {{ opacity: 0.5; }}
+                100% {{ opacity: 1; }}
             }}
             
-            .realtime-btn {{
-                background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+            .container {{
+                max-width: 1200px;
+                margin: 2rem auto;
+                padding: 0 2rem;
+            }}
+            
+            .dashboard-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
+                margin-bottom: 2rem;
+            }}
+            
+            .card {{
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border-radius: 16px;
+                padding: 2rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                transition: all 0.3s ease;
+            }}
+            
+            .card:hover {{
+                transform: translateY(-5px);
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            }}
+            
+            .card-header {{
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                margin-bottom: 1.5rem;
+                padding-bottom: 1rem;
+                border-bottom: 2px solid #f8f9fa;
+            }}
+            
+            .card-icon {{
+                width: 48px;
+                height: 48px;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.5rem;
                 color: white;
+            }}
+            
+            .card-title {{
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #1e3c72;
+                margin: 0;
+            }}
+            
+            .card-subtitle {{
+                font-size: 0.875rem;
+                color: #666;
+                margin: 0;
+            }}
+            
+            .metric-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                gap: 1rem;
+            }}
+            
+            .metric {{
+                text-align: center;
+                padding: 1rem;
+                background: #f8f9fa;
+                border-radius: 12px;
+                transition: all 0.3s ease;
+            }}
+            
+            .metric:hover {{
+                background: #e9ecef;
+                transform: scale(1.05);
+            }}
+            
+            .metric-label {{
+                font-size: 0.875rem;
+                color: #666;
+                margin-bottom: 0.5rem;
+                font-weight: 500;
+            }}
+            
+            .metric-value {{
+                font-size: 1.75rem;
+                font-weight: 700;
+                color: #1e3c72;
+            }}
+            
+            .metric-value.connected {{ color: #28a745; }}
+            .metric-value.disconnected {{ color: #dc3545; }}
+            .metric-value.on {{ color: #ffc107; }}
+            .metric-value.off {{ color: #6c757d; }}
+            .metric-value.blinking {{ color: #17a2b8; }}
+            
+            .control-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+            }}
+            
+            .btn {{
+                padding: 0.875rem 1.5rem;
                 border: none;
-                padding: 18px 35px;
-                border-radius: 50px;
+                border-radius: 12px;
+                font-size: 0.875rem;
+                font-weight: 600;
                 cursor: pointer;
-                font-size: 1.1em;
-                font-weight: 600;
-                margin: 15px;
-                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                box-shadow: 0 15px 30px rgba(86, 171, 47, 0.3);
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                text-decoration: none;
+            }}
+            
+            .btn-primary {{
+                background: linear-gradient(135deg, #007bff, #0056b3);
+                color: white;
+                box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+            }}
+            
+            .btn-primary:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+            }}
+            
+            .btn-success {{
+                background: linear-gradient(135deg, #28a745, #218838);
+                color: white;
+                box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            }}
+            
+            .btn-danger {{
+                background: linear-gradient(135deg, #dc3545, #c82333);
+                color: white;
+                box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            }}
+            
+            .btn-warning {{
+                background: linear-gradient(135deg, #ffc107, #e0a800);
+                color: #212529;
+                box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+            }}
+            
+            .btn-info {{
+                background: linear-gradient(135deg, #17a2b8, #138496);
+                color: white;
+                box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+            }}
+            
+            .btn-purple {{
+                background: linear-gradient(135deg, #6f42c1, #5a32a3);
+                color: white;
+                box-shadow: 0 4px 15px rgba(111, 66, 193, 0.3);
+            }}
+            
+            .btn-orange {{
+                background: linear-gradient(135deg, #fd7e14, #e65c00);
+                color: white;
+                box-shadow: 0 4px 15px rgba(253, 126, 20, 0.3);
+            }}
+            
+            .chart-container {{
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                border-radius: 16px;
+                padding: 2rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                margin-bottom: 2rem;
+            }}
+            
+            .chart-header {{
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                margin-bottom: 2rem;
+                padding-bottom: 1rem;
+                border-bottom: 2px solid #f8f9fa;
+            }}
+            
+            .chart-icon {{
+                width: 48px;
+                height: 48px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, #17a2b8, #138496);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.5rem;
+                color: white;
+            }}
+            
+            .chart-content {{
                 position: relative;
-                overflow: hidden;
-            }}
-            
-            .realtime-btn::before {{
-                content: '';
-                position: absolute;
-                top: 0;
-                left: -100%;
+                height: 400px;
                 width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-                transition: left 0.5s;
             }}
             
-            .realtime-btn:hover::before {{
-                left: 100%;
-            }}
-            
-            .realtime-btn:hover {{
-                transform: translateY(-5px) scale(1.08);
-                box-shadow: 0 25px 50px rgba(86, 171, 47, 0.4);
-            }}
-            
-            .section-title {{
-                font-size: 2.5em;
-                font-weight: 600;
-                margin: 40px 0 20px 0;
-                text-align: center;
-                background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }}
-            
-            .section-description {{
-                text-align: center;
-                font-size: 1.2em;
-                color: #4a5568;
-                margin-bottom: 30px;
-                font-weight: 400;
+            #sensorChart {{
+                max-height: 400px !important;
+                max-width: 100% !important;
             }}
             
             .alert-container {{
-                margin: 30px 0;
-                padding: 25px;
-                border-radius: 20px;
+                background: linear-gradient(135deg, #f56565, #e53e3e);
+                border: 2px solid #fed7d7;
+                padding: 1.5rem;
+                border-radius: 16px;
                 text-align: center;
-                animation: alertPulse 2s ease-in-out infinite;
-                box-shadow: 0 20px 40px rgba(255, 0, 0, 0.3);
-                border: 3px solid #ff4444;
-                background: linear-gradient(135deg, #ff6b6b, #ee5a24, #ff4757);
-                color: white;
+                margin: 2rem 0;
+                box-shadow: 0 8px 25px rgba(245, 101, 101, 0.3);
+                animation: alertPulse 2s infinite;
+                display: none;
                 position: relative;
                 overflow: hidden;
-                display: none;
             }}
             
             .alert-container::before {{
@@ -473,250 +433,272 @@ def home():
                 left: -50%;
                 width: 200%;
                 height: 200%;
-                background: linear-gradient(45deg, transparent, rgba(255,255,255,0.2), transparent);
-                animation: alertShine 3s linear infinite;
+                background: rgba(255, 255, 255, 0.1);
+                transform: rotate(45deg);
+                animation: alertShine 3s infinite;
             }}
             
             @keyframes alertPulse {{
-                0%, 100% {{ 
-                    transform: scale(1);
-                    box-shadow: 0 20px 40px rgba(255, 0, 0, 0.3);
-                }}
-                50% {{ 
-                    transform: scale(1.02);
-                    box-shadow: 0 25px 50px rgba(255, 0, 0, 0.5);
-                }}
+                0% {{ transform: scale(1); }}
+                50% {{ transform: scale(1.02); }}
+                100% {{ transform: scale(1); }}
             }}
             
             @keyframes alertShine {{
-                0% {{ transform: rotate(0deg); }}
-                100% {{ transform: rotate(360deg); }}
+                0% {{ opacity: 0; transform: scale(0) rotate(45deg); }}
+                80% {{ opacity: 0.2; transform: scale(0) rotate(45deg); }}
+                81% {{ opacity: 0.2; transform: scale(1) rotate(45deg); }}
+                100% {{ opacity: 0; transform: scale(1) rotate(45deg); }}
             }}
             
-            .alert-title {{
-                font-size: 2em;
-                font-weight: 700;
-                margin-bottom: 15px;
-                text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            .alert-container h2 {{
+                color: #fff;
+                font-size: 1.5rem;
+                margin-bottom: 0.5rem;
                 position: relative;
                 z-index: 1;
             }}
             
-            .alert-message {{
-                font-size: 1.3em;
-                font-weight: 500;
-                opacity: 0.95;
+            .alert-container p {{
+                color: #fff;
+                font-size: 1rem;
                 position: relative;
                 z-index: 1;
             }}
             
-            .alert-temperature {{
-                font-size: 3em;
-                font-weight: 800;
-                margin: 15px 0;
-                text-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                position: relative;
-                z-index: 1;
-            }}
-            
-            .alert-actions {{
-                margin-top: 20px;
-                position: relative;
-                z-index: 1;
-            }}
-            
-            .alert-btn {{
+            .dismiss-btn {{
                 background: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
                 color: white;
-                border: 2px solid rgba(255, 255, 255, 0.5);
-                padding: 12px 25px;
-                border-radius: 50px;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
                 cursor: pointer;
-                font-weight: 600;
-                margin: 0 10px;
-                transition: all 0.3s ease;
-                backdrop-filter: blur(10px);
+                margin-top: 1rem;
+                transition: background 0.3s ease;
+                position: relative;
+                z-index: 1;
             }}
             
-            .alert-btn:hover {{
+            .dismiss-btn:hover {{
                 background: rgba(255, 255, 255, 0.3);
-                border-color: rgba(255, 255, 255, 0.8);
-                transform: translateY(-2px);
             }}
             
-            .floating-elements {{
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: -1;
+            .footer {{
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(20px);
+                padding: 2rem 0;
+                margin-top: 3rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
             }}
             
-            .floating-circle {{
-                position: absolute;
-                border-radius: 50%;
-                background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-                animation: float 6s ease-in-out infinite;
+            .footer-content {{
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 2rem;
+                text-align: center;
+                color: #666;
             }}
             
-            .floating-circle:nth-child(1) {{
-                width: 80px;
-                height: 80px;
-                top: 20%;
-                left: 10%;
-                animation-delay: 0s;
-            }}
-            
-            .floating-circle:nth-child(2) {{
-                width: 120px;
-                height: 120px;
-                top: 60%;
-                right: 15%;
-                animation-delay: 2s;
-            }}
-            
-            .floating-circle:nth-child(3) {{
-                width: 60px;
-                height: 60px;
-                bottom: 20%;
-                left: 20%;
-                animation-delay: 4s;
-            }}
-            
-            @keyframes float {{
-                0%, 100% {{ transform: translateY(0px) rotate(0deg); }}
-                50% {{ transform: translateY(-20px) rotate(180deg); }}
+            /* Responsive Design */
+            @media (max-width: 768px) {{
+                .header-content {{
+                    flex-direction: column;
+                    gap: 1rem;
+                }}
+                
+                .container {{
+                    padding: 0 1rem;
+                }}
+                
+                .dashboard-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .metric-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+                
+                .control-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .card {{
+                    padding: 1.5rem;
+                }}
             }}
         </style>
     </head>
     <body>
-        <div class="floating-elements">
-            <div class="floating-circle"></div>
-            <div class="floating-circle"></div>
-            <div class="floating-circle"></div>
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-microchip"></i>
+                    <div class="logo-text">
+                        <h1>Sistema IoT Inteligente</h1>
+                        <p>Monitoreo y Control en Tiempo Real</p>
+                    </div>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="connection-status">{'Conectado' if esp32_data['status'] == 'connected' else 'Desconectado'}</span>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <div class="container">
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- System Status Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #218838);">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Estado del Sistema</h3>
+                            <p class="card-subtitle">Monitoreo de conexión</p>
+                        </div>
+                    </div>
+                    <div class="metric-grid">
+                        <div class="metric">
+                            <div class="metric-label">Estado ESP32</div>
+                            <div class="metric-value" id="esp32-status" style="color: {status_color};">{esp32_data['status'].upper()}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Última Conexión</div>
+                            <div class="metric-value" id="last-connection" style="font-size: 0.9rem;">{esp32_data['last_connection'] if esp32_data['last_connection'] else 'N/A'}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">IP del ESP32</div>
+                            <div class="metric-value" id="esp32-ip" style="font-size: 0.9rem;">{esp32_data['ip_address'] if esp32_data['ip_address'] else 'N/A'}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Estado del LED</div>
+                            <div class="metric-value" id="led-status-display" style="color: {led_color};">{esp32_data['led_status'].upper()}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sensor Data Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #17a2b8, #138496);">
+                            <i class="fas fa-thermometer-half"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Datos del Sensor</h3>
+                            <p class="card-subtitle">DHT11 - Temperatura y Humedad</p>
+                        </div>
+                    </div>
+                    <div class="metric-grid">
+                        <div class="metric">
+                            <div class="metric-label">Temperatura</div>
+                            <div class="metric-value" id="temperature-value" style="color: #dc3545;">{temperature}°C</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Humedad</div>
+                            <div class="metric-value" id="humidity-value" style="color: #17a2b8;">{humidity}%</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Última Actualización</div>
+                            <div class="metric-value" id="last-sensor-update" style="font-size: 0.9rem;">{last_sensor_update}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Temperature Alert -->
+            <div id="temperature-alert" class="alert-container">
+                <h2><i class="fas fa-exclamation-triangle"></i> ¡ALERTA DE TEMPERATURA ALTA!</h2>
+                <p>La temperatura actual es de <span id="alert-temp-value"></span>°C, lo cual es superior a 35°C.</p>
+                <button class="dismiss-btn" onclick="dismissAlert()">Entendido</button>
+            </div>
+            
+            <!-- Control Cards -->
+            <div class="dashboard-grid">
+                <!-- LED Control Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
+                            <i class="fas fa-lightbulb"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Control del LED</h3>
+                            <p class="card-subtitle">ESP32 LED Control</p>
+                        </div>
+                    </div>
+                    <div class="control-grid">
+                        <button class="btn btn-success" onclick="controlLED('on')">
+                            <i class="fas fa-power-off"></i> Encender
+                        </button>
+                        <button class="btn btn-danger" onclick="controlLED('off')">
+                            <i class="fas fa-times"></i> Apagar
+                        </button>
+                        <button class="btn btn-warning" onclick="controlLED('blink')">
+                            <i class="fas fa-blink"></i> Parpadear
+                        </button>
+                        <button class="btn btn-info" onclick="controlLED('toggle')">
+                            <i class="fas fa-toggle-on"></i> Alternar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sensor Test Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-icon" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
+                            <i class="fas fa-flask"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title">Pruebas del Sensor</h3>
+                            <p class="card-subtitle">DHT11 Testing</p>
+                        </div>
+                    </div>
+                    <div class="control-grid">
+                        <button class="btn btn-purple" onclick="testSensor()">
+                            <i class="fas fa-play"></i> Test Sensor
+                        </button>
+                        <button class="btn btn-orange" onclick="testAlert()">
+                            <i class="fas fa-fire"></i> Test Alert
+                        </button>
+                    </div>
+                    <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div class="metric-label">Próxima Lectura Automática</div>
+                        <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">15 min</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chart Section -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Datos Históricos</h3>
+                        <p class="card-subtitle">Gráfica de Temperatura y Humedad</p>
+                    </div>
+                </div>
+                <div class="chart-content">
+                    <canvas id="sensorChart"></canvas>
+                </div>
+            </div>
         </div>
         
-        <div class="container">
-            <h1>🌡️ ESP32 DHT11 Temperature & Humidity Monitor</h1>
-            
-            <div class="status-card">
-                <h2><span class="status-indicator"></span>Connection Status</h2>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Status</div>
-                        <div class="info-value">{esp32_data['status'].upper()}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Last Connection</div>
-                        <div class="info-value">{esp32_data['last_connection'] or 'Never'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">ESP32 IP</div>
-                        <div class="info-value">{esp32_data['ip_address'] or 'Unknown'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Last Sensor Update</div>
-                        <div class="info-value">{last_sensor_update}</div>
-                    </div>
-                </div>
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>&copy; 2024 Sistema IoT Inteligente - Monitoreo y Control en Tiempo Real</p>
+                <p>Desarrollado para Instrumentación y Medición</p>
             </div>
-
-            <div class="sensor-grid">
-                <div class="sensor-card">
-                    <div class="sensor-label">🌡️ Temperature</div>
-                    <div class="sensor-value">{temperature}<span class="sensor-unit">°C</span></div>
-                </div>
-                <div class="sensor-card">
-                    <div class="sensor-label">💧 Humidity</div>
-                    <div class="sensor-value">{humidity}<span class="sensor-unit">%</span></div>
-                </div>
-            </div>
-
-            <div id="temperature-alert" class="alert-container">
-                <div class="alert-title">🔥 ALERTA DE TEMPERATURA ALTA</div>
-                <div class="alert-message">La temperatura ha superado los 35°C</div>
-                <div class="alert-temperature" id="alert-temp-value">--°C</div>
-                <div class="alert-message">⚠️ Condición crítica detectada</div>
-                <div class="alert-actions">
-                    <button class="alert-btn" onclick="dismissAlert()">✅ Entendido</button>
-                    <button class="alert-btn" onclick="location.reload()">🔄 Actualizar</button>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h3>📊 DHT11 Data History</h3>
-                <div style="position: relative; height: 400px; width: 100%;">
-                    <canvas id="dht11Chart"></canvas>
-                </div>
-            </div>
-
-            <div style="text-align: center; margin: 50px 0;">
-                <h2 class="section-title">📡 Data Collection & Control</h2>
-                <p class="section-description">ESP32 sends DHT11 data every 30 minutes • Real-time monitoring • Interactive controls</p>
-                <div style="display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; margin-top: 40px;">
-                    <button class="realtime-btn" onclick="location.reload()">
-                        🔄 Refresh Data
-                    </button>
-                    <button class="refresh-btn" onclick="window.open('/data', '_blank')">
-                        📊 View Raw Data
-                    </button>
-                    <button class="refresh-btn" onclick="generateTestData()" style="background: linear-gradient(135deg, #17a2b8, #138496);">
-                        🧪 Generate Test Data
-                    </button>
-                    <button class="refresh-btn" onclick="testAlert()" style="background: linear-gradient(135deg, #dc3545, #c82333);">
-                        🔥 Test Alert (38.5°C)
-                    </button>
-                </div>
-                
-                <!-- LED Control Section -->
-                <div style="margin-top: 40px; padding: 30px; background: rgba(255, 255, 255, 0.1); border-radius: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);">
-                    <h3 style="color: #fff; margin-bottom: 20px; text-align: center;">💡 LED Control & Status</h3>
-                    <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 15px;">
-                        <!-- LED Status Display -->
-                        <div id="led-status-display" style="padding: 15px 25px; background: rgba(0, 0, 0, 0.3); border-radius: 15px; border: 2px solid #666; min-width: 150px; text-align: center;">
-                            <div style="color: #fff; font-weight: bold; margin-bottom: 5px;">LED Status</div>
-                            <div id="led-status-text" style="color: #ff6b6b; font-size: 18px; font-weight: bold;">OFF</div>
-                        </div>
-                        
-                        <!-- LED Control Buttons -->
-                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button class="led-btn" onclick="controlLED('on')" style="background: linear-gradient(135deg, #28a745, #20c997);">
-                                💡 ON
-                            </button>
-                            <button class="led-btn" onclick="controlLED('off')" style="background: linear-gradient(135deg, #6c757d, #5a6268);">
-                                🔴 OFF
-                            </button>
-                            <button class="led-btn" onclick="controlLED('blink')" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
-                                ⚡ BLINK
-                            </button>
-                            <button class="led-btn" onclick="controlLED('toggle')" style="background: linear-gradient(135deg, #17a2b8, #138496);">
-                                🔄 TOGGLE
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Sensor Test Section -->
-                <div style="margin-top: 30px; padding: 30px; background: rgba(255, 255, 255, 0.1); border-radius: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2);">
-                    <h3 style="color: #fff; margin-bottom: 20px; text-align: center;">🌡️ DHT11 Sensor Test</h3>
-                    <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 15px;">
-                        <button class="led-btn" onclick="testSensor()" style="background: linear-gradient(135deg, #6f42c1, #5a32a3); min-width: 200px;">
-                            🌡️ Test Sensor Reading
-                        </button>
-                        <div style="padding: 15px 25px; background: rgba(0, 0, 0, 0.3); border-radius: 15px; border: 2px solid #666; min-width: 200px; text-align: center;">
-                            <div style="color: #fff; font-size: 14px; margin-bottom: 5px;">Next Reading:</div>
-                            <div id="next-reading" style="color: #20c997; font-size: 16px; font-weight: bold;">15 min</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </footer>
 
         <script>
             // Chart configuration
-            const ctx = document.getElementById('dht11Chart').getContext('2d');
+            const ctx = document.getElementById('sensorChart').getContext('2d');
             const chart = new Chart(ctx, {{
                 type: 'line',
                 data: {{
@@ -725,12 +707,12 @@ def home():
                         {{
                             label: '🌡️ Temperature (°C)',
                             data: [],
-                            borderColor: '#ff6b6b',
-                            backgroundColor: 'rgba(255, 107, 107, 0.2)',
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.2)',
                             borderWidth: 3,
                             tension: 0.4,
                             yAxisID: 'y',
-                            pointBackgroundColor: '#ff6b6b',
+                            pointBackgroundColor: '#dc3545',
                             pointBorderColor: '#ffffff',
                             pointBorderWidth: 2,
                             pointRadius: 6,
@@ -740,12 +722,12 @@ def home():
                         {{
                             label: '💧 Humidity (%)',
                             data: [],
-                            borderColor: '#4ecdc4',
-                            backgroundColor: 'rgba(78, 205, 196, 0.2)',
+                            borderColor: '#17a2b8',
+                            backgroundColor: 'rgba(23, 162, 184, 0.2)',
                             borderWidth: 3,
                             tension: 0.4,
                             yAxisID: 'y1',
-                            pointBackgroundColor: '#4ecdc4',
+                            pointBackgroundColor: '#17a2b8',
                             pointBorderColor: '#ffffff',
                             pointBorderWidth: 2,
                             pointRadius: 6,
@@ -774,11 +756,11 @@ def home():
                         x: {{
                             display: true,
                             grid: {{
-                                color: 'rgba(255,255,255,0.2)',
-                                borderColor: 'rgba(255,255,255,0.3)'
+                                color: 'rgba(0,0,0,0.1)',
+                                borderColor: 'rgba(0,0,0,0.2)'
                             }},
                             ticks: {{
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 12,
                                     weight: '500'
@@ -787,7 +769,7 @@ def home():
                             title: {{
                                 display: true,
                                 text: '⏰ Time',
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 14,
                                     weight: '600'
@@ -799,11 +781,11 @@ def home():
                             display: true,
                             position: 'left',
                             grid: {{
-                                color: 'rgba(255,255,255,0.2)',
-                                borderColor: 'rgba(255,255,255,0.3)'
+                                color: 'rgba(0,0,0,0.1)',
+                                borderColor: 'rgba(0,0,0,0.2)'
                             }},
                             ticks: {{
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 12,
                                     weight: '500'
@@ -812,7 +794,7 @@ def home():
                             title: {{
                                 display: true,
                                 text: '🌡️ Temperature (°C)',
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 14,
                                     weight: '600'
@@ -827,10 +809,10 @@ def home():
                             position: 'right',
                             grid: {{
                                 drawOnChartArea: false,
-                                color: 'rgba(255,255,255,0.2)'
+                                color: 'rgba(0,0,0,0.1)'
                             }},
                             ticks: {{
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 12,
                                     weight: '500'
@@ -839,7 +821,7 @@ def home():
                             title: {{
                                 display: true,
                                 text: '💧 Humidity (%)',
-                                color: '#4a5568',
+                                color: '#666',
                                 font: {{
                                     size: 14,
                                     weight: '600'
@@ -853,7 +835,7 @@ def home():
                         title: {{
                             display: true,
                             text: '📊 DHT11 Real-time Sensor Data',
-                            color: '#4a5568',
+                            color: '#1e3c72',
                             font: {{
                                 size: 18,
                                 weight: '700'
@@ -873,13 +855,13 @@ def home():
                                     size: 14,
                                     weight: '600'
                                 }},
-                                color: '#4a5568'
+                                color: '#1e3c72'
                             }}
                         }},
                         tooltip: {{
                             backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            titleColor: '#4a5568',
-                            bodyColor: '#4a5568',
+                            titleColor: '#1e3c72',
+                            bodyColor: '#1e3c72',
                             borderColor: 'rgba(0,0,0,0.1)',
                             borderWidth: 1,
                             cornerRadius: 10,
@@ -923,45 +905,15 @@ def home():
                     }});
             }}
 
-            // Generate test data function
-            function generateTestData() {{
-                const btn = event.target;
-                btn.disabled = true;
-                btn.textContent = 'Generating...';
-
-                fetch('/generate-test-data', {{
-                    method: 'POST',
-                    headers: {{
-                        'Content-Type': 'application/json',
-                    }}
-                }})
-                .then(response => response.json())
-                .then(data => {{
-                    if (data.status === 'success') {{
-                        alert('Test data generated successfully! Refresh to see the charts.');
-                        setTimeout(() => location.reload(), 1000);
-                    }} else {{
-                        alert('Error: ' + data.message);
-                    }}
-                }})
-                .catch(error => {{
-                    alert('Error: ' + error);
-                }})
-                .finally(() => {{
-                    btn.disabled = false;
-                    btn.textContent = '🧪 Generate Test Data';
-                }});
-            }}
-
             // Check temperature alert
             function checkTemperatureAlert() {{
-                const temperature = parseFloat(document.querySelector('.sensor-value').textContent);
+                const temperature = parseFloat(document.getElementById('temperature-value').textContent);
                 const alertContainer = document.getElementById('temperature-alert');
                 const alertTempValue = document.getElementById('alert-temp-value');
                 
                 if (!isNaN(temperature) && temperature > 35) {{
                     alertContainer.style.display = 'block';
-                    alertTempValue.textContent = temperature + '°C';
+                    alertTempValue.textContent = temperature;
                     
                     // Play alert sound if supported
                     playAlertSound();
@@ -1026,9 +978,6 @@ def home():
                 }}
             }}
             
-            // Load chart data on page load
-            loadChartData();
-            
             // Test alert function
             function testAlert() {{
                 const btn = event.target;
@@ -1055,13 +1004,13 @@ def home():
                 }})
                 .finally(() => {{
                     btn.disabled = false;
-                    btn.textContent = '🔥 Test Alert (38.5°C)';
+                    btn.textContent = 'Test Alert';
                 }});
             }}
 
             // LED Control Functions
             function controlLED(action) {{
-                const buttons = document.querySelectorAll('.led-btn');
+                const buttons = document.querySelectorAll('.btn');
                 buttons.forEach(btn => btn.disabled = true);
                 
                 fetch('/led-control', {{
@@ -1092,7 +1041,7 @@ def home():
             function testSensor() {{
                 const button = event.target;
                 button.disabled = true;
-                button.textContent = '🌡️ Requesting...';
+                button.textContent = 'Requesting...';
                 
                 fetch('/test-sensor', {{
                     method: 'POST',
@@ -1115,29 +1064,22 @@ def home():
                 }})
                 .finally(() => {{
                     button.disabled = false;
-                    button.textContent = '🌡️ Test Sensor Reading';
+                    button.textContent = 'Test Sensor';
                 }});
             }}
 
             function updateLEDStatus(status, state) {{
-                const statusText = document.getElementById('led-status-text');
                 const statusDisplay = document.getElementById('led-status-display');
                 
-                statusText.textContent = status;
+                statusDisplay.textContent = status;
                 
                 // Update colors based on status
                 if (status === 'ON') {{
-                    statusText.style.color = '#28a745';
-                    statusDisplay.style.borderColor = '#28a745';
-                    statusDisplay.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.5)';
+                    statusDisplay.style.color = '#28a745';
                 }} else if (status === 'BLINKING') {{
-                    statusText.style.color = '#ffc107';
-                    statusDisplay.style.borderColor = '#ffc107';
-                    statusDisplay.style.boxShadow = '0 0 20px rgba(255, 193, 7, 0.5)';
+                    statusDisplay.style.color = '#ffc107';
                 }} else {{
-                    statusText.style.color = '#ff6b6b';
-                    statusDisplay.style.borderColor = '#666';
-                    statusDisplay.style.boxShadow = 'none';
+                    statusDisplay.style.color = '#6c757d';
                 }}
             }}
 
@@ -1166,35 +1108,37 @@ def home():
             }}
 
             function updateConnectionStatus(data) {{
-                const statusElement = document.querySelector('.status-indicator');
-                const statusText = document.querySelector('.status-text');
+                const statusElement = document.getElementById('connection-status');
+                const statusDot = document.querySelector('.status-dot');
                 
-                if (data.status === 'connected') {{
-                    statusElement.style.background = '#28a745';
-                    statusElement.style.boxShadow = '0 0 10px #28a745';
-                    statusText.textContent = 'Connected';
-                    statusText.style.color = '#28a745';
+                if (data.esp32_status === 'connected') {{
+                    statusElement.textContent = 'Conectado';
+                    statusDot.style.background = '#28a745';
                 }} else {{
-                    statusElement.style.background = '#dc3545';
-                    statusElement.style.boxShadow = '0 0 10px #dc3545';
-                    statusText.textContent = 'Disconnected';
-                    statusText.style.color = '#dc3545';
+                    statusElement.textContent = 'Desconectado';
+                    statusDot.style.background = '#dc3545';
                 }}
             }}
 
-            // Check temperature alert on page load
-            checkTemperatureAlert();
-            
-            // Load LED status on page load
-            loadLEDStatus();
-            
-            // Check connection status periodically
-            setInterval(checkConnectionStatus, 5000); // Every 5 seconds
-
-            // Auto-refresh every 30 seconds
-            setInterval(() => {{
-                location.reload();
-            }}, 30000);
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {{
+                // Load chart data
+                loadChartData();
+                
+                // Check temperature alert
+                checkTemperatureAlert();
+                
+                // Load LED status
+                loadLEDStatus();
+                
+                // Check connection status periodically
+                setInterval(checkConnectionStatus, 5000); // Every 5 seconds
+                
+                // Auto-refresh every 30 seconds
+                setInterval(() => {{
+                    location.reload();
+                }}, 30000);
+            }});
         </script>
     </body>
     </html>
