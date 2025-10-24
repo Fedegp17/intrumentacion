@@ -39,11 +39,40 @@ esp32_data = {
         'humidity': None,
         'temperature': None,
         'last_update': None
-    }
+    },
+    'last_heartbeat': None  # Track last heartbeat for timeout detection
 }
 
 # Store connection history
 connection_history = []
+
+def connection_monitor():
+    """Background thread to monitor ESP32 connection status"""
+    while True:
+        try:
+            check_connection_status()
+            time.sleep(30)  # Check every 30 seconds
+        except Exception as e:
+            print(f"Error in connection monitor: {e}")
+            time.sleep(30)
+
+def check_connection_status():
+    """Check if ESP32 is still connected based on last heartbeat"""
+    if esp32_data['last_heartbeat'] is None:
+        esp32_data['status'] = 'disconnected'
+        return
+    
+    # Calculate time since last heartbeat
+    last_heartbeat = datetime.strptime(esp32_data['last_heartbeat'], '%Y-%m-%d %H:%M:%S')
+    time_since_heartbeat = (datetime.now() - last_heartbeat).total_seconds()
+    
+    # If more than 2 minutes without heartbeat, mark as disconnected
+    if time_since_heartbeat > 120:  # 2 minutes timeout
+        if esp32_data['status'] == 'connected':
+            print(f"⚠️ ESP32 timeout - marking as disconnected (last seen: {esp32_data['last_heartbeat']})")
+        esp32_data['status'] = 'disconnected'
+    else:
+        esp32_data['status'] = 'connected'
 
 def save_dht11_data(humidity, temperature):
     """Save DHT11 sensor data to CSV file and Supabase"""
@@ -1198,8 +1227,10 @@ def receive_sensor_data():
             'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        # Update connection status
-        esp32_data['last_connection'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Update connection status and heartbeat
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        esp32_data['last_connection'] = current_time
+        esp32_data['last_heartbeat'] = current_time
         esp32_data['ip_address'] = request.remote_addr
         esp32_data['status'] = 'connected'
         esp32_data['connection_count'] += 1
@@ -1220,6 +1251,32 @@ def receive_sensor_data():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/data', methods=['GET'])
+def get_esp32_data():
+    """Get current ESP32 data and sensor readings"""
+    try:
+        # Check connection status before returning data
+        check_connection_status()
+        
+        # Get latest sensor data
+        sensor_data = esp32_data['sensor_data']
+        
+        return jsonify({
+            'status': 'success',
+            'esp32_status': esp32_data['status'],
+            'last_connection': esp32_data['last_connection'],
+            'ip_address': esp32_data['ip_address'],
+            'connection_count': esp32_data['connection_count'],
+            'temperature': sensor_data.get('temperature', 'N/A'),
+            'humidity': sensor_data.get('humidity', 'N/A'),
+            'timestamp': sensor_data.get('last_update', 'Never'),
+            'led_state': esp32_data['led_state'],
+            'led_status': esp32_data['led_status']
+        })
+        
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/raw-data', methods=['GET'])
 def view_data():
     """View raw sensor data"""
     try:
@@ -1447,9 +1504,11 @@ def led_status():
             # Clear the request after sending
             del esp32_data['pending_sensor_request']
         
-        # Update connection status when ESP32 checks in
+        # Update connection status and heartbeat when ESP32 checks in
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         esp32_data['status'] = 'connected'
-        esp32_data['last_connection'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        esp32_data['last_connection'] = current_time
+        esp32_data['last_heartbeat'] = current_time
         esp32_data['ip_address'] = request.remote_addr
         print(f"ESP32 connected from: {request.remote_addr}")
         
@@ -1466,6 +1525,11 @@ if __name__ == '__main__':
     print("Server will be available at: http://localhost:5000")
     print("ESP32 should connect to: http://YOUR_COMPUTER_IP:5000/data")
     print("Sensors: DHT11 (Temperature & Humidity)")
+    
+    # Start connection monitor thread
+    monitor_thread = threading.Thread(target=connection_monitor, daemon=True)
+    monitor_thread.start()
+    print("🔍 Connection monitor started")
     
     # For local development
     port = int(os.environ.get('PORT', 5000))
