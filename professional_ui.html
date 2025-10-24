@@ -195,6 +195,19 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+        
+        #sensorChart {
+            max-height: 400px !important;
+            max-width: 100% !important;
+        }
+        
         .chart-section h3 {
             font-size: 1.8em;
             font-weight: 600;
@@ -487,7 +500,9 @@
         
         <div class="chart-section">
             <h3><i class="fas fa-chart-line"></i> Análisis de Datos Históricos</h3>
-            <canvas id="sensorChart" width="400" height="200"></canvas>
+            <div class="chart-container">
+                <canvas id="sensorChart"></canvas>
+            </div>
         </div>
         
         <div class="control-section">
@@ -574,7 +589,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    height: 400,
+                    aspectRatio: 2,
                     plugins: {
                         legend: {
                             labels: {

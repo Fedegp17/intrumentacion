@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno
 load_dotenv()
+load_dotenv('supabase.env')
 
 # Configuración de Supabase
 SUPABASE_URL = os.getenv('SUPABASE_URL', '')

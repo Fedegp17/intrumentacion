@@ -6,10 +6,18 @@ import time
 import os
 import csv
 from dotenv import load_dotenv
-from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
 
 # Cargar variables de entorno
 load_dotenv()
+load_dotenv('supabase.env')
+
+# Importar Supabase solo si está disponible
+try:
+    from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    print("⚠️ Supabase no disponible, usando solo CSV")
+    SUPABASE_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -51,13 +59,16 @@ def save_dht11_data(humidity, temperature):
         # Write data row
         f.write(f'{timestamp},{temperature},{humidity}\n')
     
-    # Save to Supabase (primary storage)
-    try:
-        supabase = get_supabase_client()
-        insert_sensor_data(supabase, temperature, humidity)
-        print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
-    except Exception as e:
-        print(f"⚠️ Error con Supabase, usando CSV: {e}")
+    # Save to Supabase (primary storage) if available
+    if SUPABASE_AVAILABLE:
+        try:
+            supabase = get_supabase_client()
+            insert_sensor_data(supabase, temperature, humidity)
+            print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+        except Exception as e:
+            print(f"⚠️ Error con Supabase, usando CSV: {e}")
+            print(f"DHT11 data saved to CSV: T={temperature}°C, H={humidity}%")
+    else:
         print(f"DHT11 data saved to CSV: T={temperature}°C, H={humidity}%")
 
 @app.route('/')
@@ -1231,14 +1242,15 @@ def view_data():
 def get_chart_data():
     """Get DHT11 data for charts from Supabase"""
     try:
-        # Try to get data from Supabase first
-        try:
-            supabase = get_supabase_client()
-            supabase_chart_data = get_chart_data(supabase, limit=20)
-            if supabase_chart_data['status'] == 'success':
-                return jsonify(supabase_chart_data)
-        except Exception as e:
-            print(f"⚠️ Error con Supabase, usando CSV: {e}")
+        # Try to get data from Supabase first if available
+        if SUPABASE_AVAILABLE:
+            try:
+                supabase = get_supabase_client()
+                supabase_chart_data = get_chart_data(supabase, limit=20)
+                if supabase_chart_data['status'] == 'success':
+                    return jsonify(supabase_chart_data)
+            except Exception as e:
+                print(f"⚠️ Error con Supabase, usando CSV: {e}")
         
         # Fallback to CSV if Supabase fails
         if not os.path.exists(SENSOR_DATA_FILE):
