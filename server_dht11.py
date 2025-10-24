@@ -51,16 +51,22 @@ def save_dht11_data(humidity, temperature):
 @app.route('/')
 def home():
     """Home page with ESP32 status and DHT11 data visualization"""
-    status_color = "green" if esp32_data['status'] == 'connected' else "red"
-    led_color = "yellow" if esp32_data['led_state'] else "gray"
-    
-    # Get latest sensor data
-    sensor_data = esp32_data['sensor_data']
-    humidity = sensor_data.get('humidity', 'N/A')
-    temperature = sensor_data.get('temperature', 'N/A')
-    last_sensor_update = sensor_data.get('last_update', 'Never')
-    
-    return f"""
+    # Read the professional UI HTML file
+    try:
+        with open('professional_ui.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        # Fallback to basic interface if file not found
+        status_color = "green" if esp32_data['status'] == 'connected' else "red"
+        led_color = "yellow" if esp32_data['led_state'] else "gray"
+        
+        # Get latest sensor data
+        sensor_data = esp32_data['sensor_data']
+        humidity = sensor_data.get('humidity', 'N/A')
+        temperature = sensor_data.get('temperature', 'N/A')
+        last_sensor_update = sensor_data.get('last_update', 'Never')
+        
+        return f"""
     <!DOCTYPE html>
     <html>
     <head>
