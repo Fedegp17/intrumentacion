@@ -5,6 +5,11 @@ import threading
 import time
 import os
 import csv
+from dotenv import load_dotenv
+from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
+
+# Cargar variables de entorno
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -33,10 +38,10 @@ esp32_data = {
 connection_history = []
 
 def save_dht11_data(humidity, temperature):
-    """Save DHT11 sensor data to CSV"""
+    """Save DHT11 sensor data to CSV file and Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Check if CSV file exists, if not create with headers
+    # Save to CSV (backup)
     file_exists = os.path.exists(SENSOR_DATA_FILE)
     
     with open(SENSOR_DATA_FILE, 'a', newline='') as f:
@@ -46,7 +51,14 @@ def save_dht11_data(humidity, temperature):
         # Write data row
         f.write(f'{timestamp},{temperature},{humidity}\n')
     
-    print(f"DHT11 data saved: T={temperature}°C, H={humidity}%")
+    # Save to Supabase (primary storage)
+    try:
+        supabase = get_supabase_client()
+        insert_sensor_data(supabase, temperature, humidity)
+        print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+    except Exception as e:
+        print(f"⚠️ Error con Supabase, usando CSV: {e}")
+        print(f"DHT11 data saved to CSV: T={temperature}°C, H={humidity}%")
 
 @app.route('/')
 def home():
@@ -1217,8 +1229,18 @@ def view_data():
 
 @app.route('/chart-data')
 def get_chart_data():
-    """Get DHT11 data for charts"""
+    """Get DHT11 data for charts from Supabase"""
     try:
+        # Try to get data from Supabase first
+        try:
+            supabase = get_supabase_client()
+            supabase_chart_data = get_chart_data(supabase, limit=20)
+            if supabase_chart_data['status'] == 'success':
+                return jsonify(supabase_chart_data)
+        except Exception as e:
+            print(f"⚠️ Error con Supabase, usando CSV: {e}")
+        
+        # Fallback to CSV if Supabase fails
         if not os.path.exists(SENSOR_DATA_FILE):
             return jsonify({
                 'status': 'error',
