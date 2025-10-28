@@ -655,7 +655,7 @@ def home():
         </script>
     </body>
 </html>
-    ''')
+    ''', esp32_data=esp32_data)
 
 @app.route('/data', methods=['GET', 'POST'])
 def receive_sensor_data():
