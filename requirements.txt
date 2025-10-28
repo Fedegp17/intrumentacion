@@ -1,5 +1,6 @@
-Flask==2.3.3
-Werkzeug==2.3.7
+Flask==3.0.0
+Werkzeug==3.0.1
 python-dotenv==1.0.0
-supabase==2.0.3
-unicorn==0.0.1
+supabase==2.3.4
+gunicorn==21.2.0
+requests==2.31.0
