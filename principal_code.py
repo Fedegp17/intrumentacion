@@ -104,13 +104,13 @@ def save_dht11_data(humidity, temperature):
         try:
             success = insert_sensor_data(temperature, humidity, timestamp)
             if success:
-                print(f"Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+                print(f"Datos guardados en Supabase: T={temperature}C, H={humidity}%")
             else:
                 print(f"Error guardando en Supabase")
         except Exception as e:
             print(f"Error con Supabase: {e}")
     
-    print(f"DHT11 data saved: T={temperature}°C, H={humidity}%")
+    print(f"DHT11 data saved: T={temperature}C, H={humidity}%")
 
 @app.route('/')
 def home():
