@@ -75,8 +75,8 @@ def check_connection_status():
     else:
         esp32_data['status'] = 'connected'
 
-def save_dht11_data(humidity, temperature):
-    """Save DHT11 sensor data to CSV file and Supabase"""
+def save_sensor_data(humidity, temperature, uv_index):
+    """Save sensor data to CSV file and Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # Check if we're in Vercel (read-only filesystem)
@@ -89,11 +89,11 @@ def save_dht11_data(humidity, temperature):
             
             with open(SENSOR_DATA_FILE, 'a', newline='') as f:
                 if not file_exists:
-                    f.write('timestamp,temperature,humidity\n')
+                    f.write('timestamp,temperature,humidity,uv_index\n')
                 
                 # Write data row
-                f.write(f'{timestamp},{temperature},{humidity}\n')
-            print(f"CSV backup saved: T={temperature}°C, H={humidity}%")
+                f.write(f'{timestamp},{temperature},{humidity},{uv_index}\n')
+            print(f"CSV backup saved: T={temperature}C, H={humidity}%, UV={uv_index}")
         except Exception as e:
             print(f"Error saving CSV: {e}")
     else:
@@ -102,15 +102,15 @@ def save_dht11_data(humidity, temperature):
     # Save to Supabase (primary storage) if available
     if SUPABASE_AVAILABLE:
         try:
-            success = insert_sensor_data(temperature, humidity, timestamp)
+            success = insert_sensor_data(temperature, humidity, timestamp, uv_index)
             if success:
-                print(f"Datos guardados en Supabase: T={temperature}C, H={humidity}%")
+                print(f"Datos guardados en Supabase: T={temperature}C, H={humidity}%, UV={uv_index}")
             else:
                 print(f"Error guardando en Supabase")
         except Exception as e:
             print(f"Error con Supabase: {e}")
     
-    print(f"DHT11 data saved: T={temperature}C, H={humidity}%")
+    print(f"Sensor data saved: T={temperature}C, H={humidity}%, UV={uv_index}")
 
 @app.route('/')
 def home():
@@ -1423,13 +1423,14 @@ def home():
 
 @app.route('/data', methods=['POST'])
 def receive_sensor_data():
-    """Receive DHT11 sensor data from ESP32"""
+    """Receive sensor data from ESP32"""
     try:
         data = request.get_json() or {}
         
         # Extract sensor values
         humidity = data.get('humidity')
         temperature = data.get('temperature')
+        uv_index = data.get('uv_index', 0)  # Default to 0 if not provided
         
         # Validate data
         if humidity is None or temperature is None:
@@ -1438,13 +1439,14 @@ def receive_sensor_data():
                 'message': 'Missing sensor data. Required: humidity, temperature'
             }), 400
         
-        # Save to CSV
-        save_dht11_data(humidity, temperature)
+        # Save sensor data
+        save_sensor_data(humidity, temperature, uv_index)
         
         # Also update current sensor data
         esp32_data['sensor_data'] = {
             'humidity': humidity,
             'temperature': temperature,
+            'uv_index': uv_index,
             'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
@@ -1458,11 +1460,12 @@ def receive_sensor_data():
         
         response = {
             'status': 'success',
-            'message': 'DHT11 data received and saved',
+            'message': 'Sensor data received and saved',
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'data': {
                 'humidity': humidity,
-                'temperature': temperature
+                'temperature': temperature,
+                'uv_index': uv_index
             }
         }
         

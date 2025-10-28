@@ -16,6 +16,12 @@ const int LED_PIN = 13;  // LED interno del ESP32 (cambiamos para evitar conflic
 #define DHT_TYPE DHT11   // DHT sensor type
 DHT dht(DHT_PIN, DHT_TYPE);
 
+// UV Sensor configuration (GUVA-S12SD)
+#define UV_PIN 34        // GPIO 34 (ADC1_CH6) - Connect UV sensor analog output here
+#define UV_RESOLUTION 12 // ADC resolution (12-bit = 4096 levels)
+#define UV_VREF 3.3     // Reference voltage (3.3V)
+#define UV_SENSITIVITY 0.1 // Sensitivity in V per UV index unit
+
 // Timing configuration
 unsigned long lastConnectionAttempt = 0;
 unsigned long lastSensorReading = 0;
@@ -31,6 +37,7 @@ int connectionAttempts = 0;
 // Sensor data variables
 float humidity = 0.0;
 float temperature = 0.0;
+float uvIndex = 0.0;
 
 // LED control variables
 bool ledState = false;
@@ -52,17 +59,23 @@ void setup() {
   dht.begin();
   Serial.println("✅ DHT11 sensor initialized on GPIO 2");
   
-  // Test DHT11 sensor on startup
-  Serial.println("🧪 Testing DHT11 sensor...");
-  delay(2000);  // Wait for sensor to stabilize
+  // Initialize UV sensor ADC
+  analogReadResolution(UV_RESOLUTION);
+  Serial.println("✅ UV sensor initialized on GPIO 34 (ADC)");
+  
+  // Test sensors on startup
+  Serial.println("🧪 Testing sensors...");
+  delay(2000);  // Wait for sensors to stabilize
   readDHT11Sensor();
+  readUVSensor();
   
   // Connect to WiFi
   connectToWiFi();
   
-  Serial.println("🚀 ESP32 DHT11 Monitor Ready!");
+  Serial.println("🚀 ESP32 Multi-Sensor Monitor Ready!");
   Serial.println("📡 Will send data every 15 minutes");
   Serial.println("💡 LED control enabled - checking commands every 10 seconds");
+  Serial.println("🌡️ Sensors: DHT11 (Temperature/Humidity) + UV (GUVA-S12SD)");
   Serial.println("────────────────────────────────");
 }
 
@@ -82,6 +95,7 @@ void loop() {
   // Read sensors every minute
   if (currentTime - lastSensorReading > sensorInterval) {
     readDHT11Sensor();
+    readUVSensor();
     lastSensorReading = currentTime;
   }
   
@@ -186,15 +200,48 @@ void readDHT11Sensor() {
   digitalWrite(LED_PIN, HIGH);
 }
 
+void readUVSensor() {
+  Serial.println("☀️ Starting UV sensor reading...");
+  Serial.println("📍 Pin: GPIO 34 (ADC)");
+  
+  // Read analog value from UV sensor
+  int rawValue = analogRead(UV_PIN);
+  
+  // Convert to voltage
+  float voltage = (rawValue * UV_VREF) / (1 << UV_RESOLUTION);
+  
+  // Convert voltage to UV index
+  // GUVA-S12SD: approximately 0.1V per UV index unit
+  float newUVIndex = voltage / UV_SENSITIVITY;
+  
+  // Clamp UV index to reasonable range (0-15)
+  if (newUVIndex < 0) newUVIndex = 0;
+  if (newUVIndex > 15) newUVIndex = 15;
+  
+  Serial.printf("🔍 Raw readings - ADC: %d, Voltage: %.3fV, UV Index: %.1f\n", 
+                rawValue, voltage, newUVIndex);
+  
+  // Update global variable
+  uvIndex = newUVIndex;
+  
+  Serial.println("✅ UV Sensor Reading SUCCESS:");
+  Serial.printf("  ☀️ UV Index: %.1f\n", uvIndex);
+  Serial.printf("  📊 Voltage: %.3fV\n", voltage);
+  Serial.printf("  🔢 Raw ADC: %d\n", rawValue);
+  Serial.println("📤 UV data ready for transmission");
+  Serial.println("────────────────────────────────");
+}
+
 void sendSensorData() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("❌ No WiFi connection. Cannot send data.");
     return;
   }
   
-  Serial.println("⬆️ Sending DHT11 data to server...");
+  Serial.println("⬆️ Sending sensor data to server...");
   Serial.printf("  Temperature: %.1f°C\n", temperature);
   Serial.printf("  Humidity: %.1f%%\n", humidity);
+  Serial.printf("  UV Index: %.1f\n", uvIndex);
   
   HTTPClient http;
   String url = String(serverURL) + "/data";
@@ -206,6 +253,7 @@ void sendSensorData() {
   DynamicJsonDocument doc(256);
   doc["temperature"] = temperature;
   doc["humidity"] = humidity;
+  doc["uv_index"] = uvIndex;
   
   String jsonString;
   serializeJson(doc, jsonString);

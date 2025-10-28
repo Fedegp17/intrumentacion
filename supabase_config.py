@@ -22,7 +22,7 @@ try:
         """Retorna el cliente de Supabase"""
         return supabase
     
-    def insert_sensor_data(temperature, humidity, timestamp):
+    def insert_sensor_data(temperature, humidity, timestamp, uv_index=None):
         """Inserta datos del sensor en Supabase"""
         try:
             data = {
@@ -30,6 +30,8 @@ try:
                 'humidity': humidity,
                 'timestamp': timestamp
             }
+            if uv_index is not None:
+                data['uv_index'] = uv_index
             result = supabase.table('sensor_data').insert(data).execute()
             print(f"Datos insertados en Supabase: {data}")
             return True
@@ -57,24 +59,28 @@ try:
                     'status': 'success',
                     'labels': [],
                     'temperature': [],
-                    'humidity': []
+                    'humidity': [],
+                    'uv_index': []
                 }
             
             # Procesar datos para el grafico
             labels = []
             temperature = []
             humidity = []
+            uv_index = []
             
             for item in reversed(data):  # Invertir para orden cronologico
                 labels.append(item['timestamp'])
                 temperature.append(item['temperature'])
                 humidity.append(item['humidity'])
+                uv_index.append(item.get('uv_index', 0))  # Default to 0 if not present
             
             return {
                 'status': 'success',
                 'labels': labels,
                 'temperature': temperature,
-                'humidity': humidity
+                'humidity': humidity,
+                'uv_index': uv_index
             }
         except Exception as e:
             print(f"Error obteniendo datos del grafico de Supabase: {e}")
@@ -82,7 +88,8 @@ try:
                 'status': 'error',
                 'labels': [],
                 'temperature': [],
-                'humidity': []
+                'humidity': [],
+                'uv_index': []
             }
     
     print("Supabase configurado correctamente")
