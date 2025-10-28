@@ -11,12 +11,6 @@ const char* password = "mKyUQGz295";
 const char* serverURL = "https://intrumentacion.vercel.app";  // URL de Vercel
 const int LED_PIN = 13;  // LED interno del ESP32 (cambiamos para evitar conflicto con DHT11)
 
-// Button configuration for manual data send
-#define BUTTON_PIN 0        // GPIO 0 (BOOT button) - Connect external button here
-volatile bool buttonPressed = false;
-unsigned long lastButtonPress = 0;
-const unsigned long buttonDebounceTime = 200;  // 200ms debounce
-
 // DHT11 sensor configuration
 #define DHT_PIN 2        // GPIO 2 (Pin 2) - Connect DHT11 data pin here (ESP32 DevKit v1)
 #define DHT_TYPE DHT11   // DHT sensor type
@@ -54,11 +48,6 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);  // LED off initially
   
-  // Initialize Button for manual data send
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, FALLING);
-  Serial.println("🔘 Manual send button configured on GPIO 0");
-  
   // Initialize DHT11 sensor
   dht.begin();
   Serial.println("✅ DHT11 sensor initialized on GPIO 2");
@@ -74,7 +63,6 @@ void setup() {
   Serial.println("🚀 ESP32 DHT11 Monitor Ready!");
   Serial.println("📡 Will send data every 15 minutes");
   Serial.println("💡 LED control enabled - checking commands every 10 seconds");
-  Serial.println("🔘 Manual send button enabled on GPIO 0 (BOOT button)");
   Serial.println("────────────────────────────────");
 }
 
@@ -101,11 +89,6 @@ void loop() {
   if (currentTime - lastDataSend > dataSendInterval) {
     sendSensorData();
     lastDataSend = currentTime;
-  }
-  
-  // Check for manual button press
-  if (buttonPressed) {
-    handleButtonPress();
   }
   
   // Update LED state (for blinking)
@@ -346,41 +329,4 @@ void checkServerCommands() {
   }
   
   http.end();
-}
-
-// Button Interrupt Service Routine
-void IRAM_ATTR buttonISR() {
-  buttonPressed = true;
-}
-
-// Handle button press with debouncing
-void handleButtonPress() {
-  unsigned long currentTime = millis();
-  
-  // Debounce check
-  if (currentTime - lastButtonPress < buttonDebounceTime) {
-    buttonPressed = false;
-    return;
-  }
-  
-  lastButtonPress = currentTime;
-  buttonPressed = false;
-  
-  Serial.println("🔘 Button pressed! Sending data manually...");
-  
-  // Read sensor data immediately
-  readDHT11Sensor();
-  
-  // Send data immediately
-  sendSensorData();
-  
-  // Visual feedback - LED blinks 3 times
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(LED_PIN, LOW);
-    delay(100);
-    digitalWrite(LED_PIN, HIGH);
-    delay(100);
-  }
-  
-  Serial.println("✅ Manual data send completed!");
 }

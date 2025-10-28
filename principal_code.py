@@ -15,9 +15,9 @@ load_dotenv('supabase.env')
 try:
     from supabase_config import get_supabase_client, insert_sensor_data, get_sensor_data, get_chart_data
     SUPABASE_AVAILABLE = True
-    print("✅ Supabase disponible")
+    print("Supabase disponible")
 except ImportError:
-    print("⚠️ Supabase no disponible, usando solo CSV")
+    print("Supabase no disponible, usando solo CSV")
     SUPABASE_AVAILABLE = False
 
 app = Flask(__name__)
@@ -70,7 +70,7 @@ def check_connection_status():
     # If more than 2 minutes without heartbeat, mark as disconnected
     if time_since_heartbeat > 120:  # 2 minutes timeout
         if esp32_data['status'] == 'connected':
-            print(f"⚠️ ESP32 timeout - marking as disconnected (last seen: {esp32_data['last_heartbeat']})")
+            print(f"ESP32 timeout - marking as disconnected (last seen: {esp32_data['last_heartbeat']})")
         esp32_data['status'] = 'disconnected'
     else:
         esp32_data['status'] = 'connected'
@@ -94,11 +94,11 @@ def save_dht11_data(humidity, temperature):
         try:
             success = insert_sensor_data(temperature, humidity, timestamp)
             if success:
-                print(f"✅ Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
+                print(f"Datos guardados en Supabase: T={temperature}°C, H={humidity}%")
             else:
-                print(f"❌ Error guardando en Supabase")
+                print(f"Error guardando en Supabase")
         except Exception as e:
-            print(f"⚠️ Error con Supabase, usando CSV: {e}")
+            print(f"Error con Supabase, usando CSV: {e}")
     
     print(f"DHT11 data saved: T={temperature}°C, H={humidity}%")
 
@@ -1514,7 +1514,7 @@ def get_historical_data():
                     'source': 'supabase'
                 })
             except Exception as e:
-                print(f"⚠️ Error obteniendo datos históricos de Supabase: {e}")
+                print(f"Error obteniendo datos históricos de Supabase: {e}")
                 return jsonify({
                     'status': 'error',
                     'message': 'Error obteniendo datos de Supabase',
@@ -1547,7 +1547,7 @@ def get_chart_data():
                 if supabase_chart_data['status'] == 'success':
                     return jsonify(supabase_chart_data)
             except Exception as e:
-                print(f"⚠️ Error con Supabase, usando CSV: {e}")
+                print(f"Error con Supabase, usando CSV: {e}")
         
         # Fallback to CSV if Supabase fails
         if not os.path.exists(SENSOR_DATA_FILE):
@@ -1700,7 +1700,7 @@ def test_led():
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        print(f"🧪 Test LED command queued: {action}")
+        print(f"Test LED command queued: {action}")
         return jsonify(response)
         
     except Exception as e:
@@ -1719,7 +1719,7 @@ def test_sensor():
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        print(f"🌡️ Sensor test request sent to ESP32")
+        print(f"Sensor test request sent to ESP32")
         return jsonify(response)
         
     except Exception as e:
@@ -1739,14 +1739,14 @@ def led_status():
         # Check if there's a pending LED command for ESP32
         if 'pending_led_command' in esp32_data and esp32_data['pending_led_command']:
             response['led_command'] = esp32_data['pending_led_command']
-            print(f"🔥 ESP32 LED Command sent: {esp32_data['pending_led_command']}")
+            print(f"ESP32 LED Command sent: {esp32_data['pending_led_command']}")
             # Clear the command after sending
             del esp32_data['pending_led_command']
         
         # Check if there's a pending sensor request for ESP32
         if 'pending_sensor_request' in esp32_data and esp32_data['pending_sensor_request']:
             response['sensor_request'] = True
-            print(f"🌡️ ESP32 Sensor Request sent")
+            print(f"ESP32 Sensor Request sent")
             # Clear the request after sending
             del esp32_data['pending_sensor_request']
         
@@ -1775,7 +1775,7 @@ if __name__ == '__main__':
     # Start connection monitor thread
     monitor_thread = threading.Thread(target=connection_monitor, daemon=True)
     monitor_thread.start()
-    print("🔍 Connection monitor started")
+    print("Connection monitor started")
     
     # For local development
     port = int(os.environ.get('PORT', 5000))
