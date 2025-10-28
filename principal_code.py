@@ -79,15 +79,25 @@ def save_dht11_data(humidity, temperature):
     """Save DHT11 sensor data to CSV file and Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Save to CSV (backup)
-    file_exists = os.path.exists(SENSOR_DATA_FILE)
+    # Check if we're in Vercel (read-only filesystem)
+    is_vercel = os.environ.get('VERCEL') == '1'
     
-    with open(SENSOR_DATA_FILE, 'a', newline='') as f:
-        if not file_exists:
-            f.write('timestamp,temperature,humidity\n')
-        
-        # Write data row
-        f.write(f'{timestamp},{temperature},{humidity}\n')
+    # Save to CSV (backup) - only if not in Vercel
+    if not is_vercel:
+        try:
+            file_exists = os.path.exists(SENSOR_DATA_FILE)
+            
+            with open(SENSOR_DATA_FILE, 'a', newline='') as f:
+                if not file_exists:
+                    f.write('timestamp,temperature,humidity\n')
+                
+                # Write data row
+                f.write(f'{timestamp},{temperature},{humidity}\n')
+            print(f"CSV backup saved: T={temperature}°C, H={humidity}%")
+        except Exception as e:
+            print(f"Error saving CSV: {e}")
+    else:
+        print("Running on Vercel - skipping CSV save")
     
     # Save to Supabase (primary storage) if available
     if SUPABASE_AVAILABLE:
@@ -98,7 +108,7 @@ def save_dht11_data(humidity, temperature):
             else:
                 print(f"Error guardando en Supabase")
         except Exception as e:
-            print(f"Error con Supabase, usando CSV: {e}")
+            print(f"Error con Supabase: {e}")
     
     print(f"DHT11 data saved: T={temperature}°C, H={humidity}%")
 
@@ -1540,6 +1550,9 @@ def get_historical_data():
 def get_chart_data():
     """Get DHT11 data for charts from Supabase"""
     try:
+        # Check if we're in Vercel
+        is_vercel = os.environ.get('VERCEL') == '1'
+        
         # Try to get data from Supabase first if available
         if SUPABASE_AVAILABLE:
             try:
@@ -1547,24 +1560,17 @@ def get_chart_data():
                 if supabase_chart_data['status'] == 'success':
                     return jsonify(supabase_chart_data)
             except Exception as e:
-                print(f"Error con Supabase, usando CSV: {e}")
+                print(f"Error con Supabase: {e}")
         
-        # Fallback to CSV if Supabase fails
-        if not os.path.exists(SENSOR_DATA_FILE):
-            return jsonify({
-                'status': 'error',
-                'message': 'No sensor data available'
-            })
-        
-        # Read CSV data using native CSV module
-        chart_data = {
-            'status': 'success',
-            'labels': [],
-            'temperature': [],
-            'humidity': []
-        }
-        
-        if os.path.exists(SENSOR_DATA_FILE):
+        # Fallback to CSV if Supabase fails and not in Vercel
+        if not is_vercel and os.path.exists(SENSOR_DATA_FILE):
+            chart_data = {
+                'status': 'success',
+                'labels': [],
+                'temperature': [],
+                'humidity': []
+            }
+            
             with open(SENSOR_DATA_FILE, 'r') as f:
                 reader = csv.DictReader(f)
                 rows = list(reader)
@@ -1576,8 +1582,14 @@ def get_chart_data():
                     chart_data['labels'].append(row['timestamp'])
                     chart_data['temperature'].append(float(row['temperature']))
                     chart_data['humidity'].append(float(row['humidity']))
+            
+            return jsonify(chart_data)
         
-        return jsonify(chart_data)
+        # If no data available (Vercel without Supabase)
+        return jsonify({
+            'status': 'error',
+            'message': 'No sensor data available - Supabase not configured'
+        })
         
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
