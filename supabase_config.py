@@ -38,7 +38,7 @@ try:
             return False
     
     def get_sensor_data(limit=50):
-        """Obtiene los últimos datos del sensor desde Supabase"""
+        """Obtiene los ultimos datos del sensor desde Supabase"""
         try:
             result = supabase.table('sensor_data').select('*').order('timestamp', desc=True).limit(limit).execute()
             return result.data
@@ -47,7 +47,7 @@ try:
             return []
     
     def get_chart_data(limit=50):
-        """Obtiene datos para el gráfico desde Supabase"""
+        """Obtiene datos para el grafico desde Supabase"""
         try:
             result = supabase.table('sensor_data').select('*').order('timestamp', desc=True).limit(limit).execute()
             data = result.data
@@ -60,12 +60,12 @@ try:
                     'humidity': []
                 }
             
-            # Procesar datos para el gráfico
+            # Procesar datos para el grafico
             labels = []
             temperature = []
             humidity = []
             
-            for item in reversed(data):  # Invertir para orden cronológico
+            for item in reversed(data):  # Invertir para orden cronologico
                 labels.append(item['timestamp'])
                 temperature.append(item['temperature'])
                 humidity.append(item['humidity'])
@@ -77,7 +77,7 @@ try:
                 'humidity': humidity
             }
         except Exception as e:
-            print(f"Error obteniendo datos del gráfico de Supabase: {e}")
+            print(f"Error obteniendo datos del grafico de Supabase: {e}")
             return {
                 'status': 'error',
                 'labels': [],
