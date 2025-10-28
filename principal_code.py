@@ -294,6 +294,19 @@ def home():
             font-weight: 600;
         }
 
+        .control-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .control-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
         .footer {
             text-align: center;
             color: white;
@@ -375,10 +388,15 @@ def home():
                     <span class="metric-value" id="uv-value">{{ esp32_data.sensor_data.uv_index }}</span>
                 </div>
                 
-                <div style="text-align: center; margin-top: 20px;">
-                    <button class="btn btn-success" onclick="testSensor()">
-                        <i class="fas fa-play"></i> Test Sensor
-                    </button>
+                <div class="control-section">
+                    <div class="control-buttons">
+                        <button class="btn btn-success" onclick="testSensor()">
+                            <i class="fas fa-play"></i> Test Sensor
+                        </button>
+                        <button class="btn btn-warning" onclick="testAlert()">
+                            <i class="fas fa-exclamation-triangle"></i> Test Alert
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -407,6 +425,38 @@ def home():
                 <div class="metric">
                     <span class="metric-label">Proxima Lectura</span>
                     <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">1 hora</div>
+                </div>
+            </div>
+
+            <!-- LED Control Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Control LED</h3>
+                        <p class="card-subtitle">Control del LED del ESP32</p>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Estado LED</span>
+                    <div class="metric-value" id="led-status-display" style="font-size: 1.2rem;">{{ esp32_data.led_status }}</div>
+                </div>
+                
+                <div class="control-section">
+                    <div class="control-buttons">
+                        <button class="btn btn-success" onclick="controlLED('on')">
+                            <i class="fas fa-power-off"></i> Encender
+                        </button>
+                        <button class="btn btn-danger" onclick="controlLED('off')">
+                            <i class="fas fa-power-off"></i> Apagar
+                        </button>
+                        <button class="btn btn-warning" onclick="controlLED('blink')">
+                            <i class="fas fa-blink"></i> Parpadear
+                        </button>
+                    </div>
                 </div>
             </div>
             
