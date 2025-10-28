@@ -85,10 +85,10 @@ try:
                 'humidity': []
             }
     
-    print("✅ Supabase configurado correctamente")
+    print("Supabase configurado correctamente")
     
 except ImportError:
-    print("⚠️ Supabase no disponible, usando solo CSV")
+    print("Supabase no disponible, usando solo CSV")
     supabase = None
     
     def get_supabase_client():
