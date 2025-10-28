@@ -122,6 +122,7 @@ def home():
     sensor_data = esp32_data['sensor_data']
     humidity = sensor_data.get('humidity', 'N/A')
     temperature = sensor_data.get('temperature', 'N/A')
+    uv_index = sensor_data.get('uv_index', 'N/A')
     last_sensor_update = sensor_data.get('last_update', 'Never')
     
     return f"""
@@ -701,20 +702,24 @@ def home():
                         </div>
                         <div>
                             <h3 class="card-title">Datos del Sensor</h3>
-                            <p class="card-subtitle">DHT11 - Temperatura y Humedad</p>
+                            <p class="card-subtitle">DHT11 + UV Sensor - Temperatura, Humedad y UV</p>
                         </div>
                     </div>
                     <div class="metric-grid">
                         <div class="metric">
                             <div class="metric-label">Temperatura</div>
-                            <div class="metric-value" id="temperature-value" style="color: #dc3545;">{temperature}°C</div>
+                            <div class="metric-value" id="temperature-value" style="color: #dc3545;">{temperature}C</div>
                         </div>
                         <div class="metric">
                             <div class="metric-label">Humedad</div>
                             <div class="metric-value" id="humidity-value" style="color: #17a2b8;">{humidity}%</div>
                         </div>
                         <div class="metric">
-                            <div class="metric-label">Última Actualización</div>
+                            <div class="metric-label">UV Index</div>
+                            <div class="metric-value" id="uv-value" style="color: #ffc107;">{uv_index}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Ultima Actualizacion</div>
                             <div class="metric-value" id="last-sensor-update" style="font-size: 0.9rem;">{last_sensor_update}</div>
                         </div>
                     </div>
@@ -862,7 +867,7 @@ def home():
                     labels: [],
                     datasets: [
                         {{
-                            label: '🌡️ Temperature (°C)',
+                            label: 'Temperature (C)',
                             data: [],
                             borderColor: '#dc3545',
                             backgroundColor: 'rgba(220, 53, 69, 0.15)',
@@ -881,7 +886,7 @@ def home():
                             spanGaps: false
                         }},
                         {{
-                            label: '💧 Humidity (%)',
+                            label: 'Humidity (%)',
                             data: [],
                             borderColor: '#17a2b8',
                             backgroundColor: 'rgba(23, 162, 184, 0.15)',
@@ -894,6 +899,25 @@ def home():
                             pointRadius: 8,
                             pointHoverRadius: 10,
                             pointHoverBackgroundColor: '#17a2b8',
+                            pointHoverBorderColor: '#ffffff',
+                            pointHoverBorderWidth: 3,
+                            fill: true,
+                            spanGaps: false
+                        }},
+                        {{
+                            label: 'UV Index',
+                            data: [],
+                            borderColor: '#ffc107',
+                            backgroundColor: 'rgba(255, 193, 7, 0.15)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            yAxisID: 'y2',
+                            pointBackgroundColor: '#ffc107',
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 3,
+                            pointRadius: 8,
+                            pointHoverRadius: 10,
+                            pointHoverBackgroundColor: '#ffc107',
                             pointHoverBorderColor: '#ffffff',
                             pointHoverBorderWidth: 3,
                             fill: true,
@@ -1017,6 +1041,36 @@ def home():
                             }},
                             min: 0,
                             max: 100
+                        }},
+                        y2: {{
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {{
+                                drawOnChartArea: false,
+                                drawBorder: false
+                            }},
+                            ticks: {{
+                                color: '#ffc107',
+                                font: {{
+                                    size: 11,
+                                    weight: '500',
+                                    family: "'Inter', sans-serif"
+                                }},
+                                padding: 8
+                            }},
+                            title: {{
+                                display: true,
+                                text: 'UV Index',
+                                color: '#ffc107',
+                                font: {{
+                                    size: 12,
+                                    weight: '600',
+                                    family: "'Inter', sans-serif"
+                                }}
+                            }},
+                            min: 0,
+                            max: 15
                         }}
                     }},
                     plugins: {{
@@ -1091,6 +1145,7 @@ def home():
                             chart.data.labels = labels;
                             chart.data.datasets[0].data = data.temperature;
                             chart.data.datasets[1].data = data.humidity;
+                            chart.data.datasets[2].data = data.uv_index || [];
                             
                             chart.update();
                         }} else {{
