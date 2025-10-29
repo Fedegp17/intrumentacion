@@ -1,0 +1,680 @@
+from flask import Flask, render_template_string, request, jsonify
+from datetime import datetime
+import os
+import json
+
+app = Flask(__name__)
+
+# Global variables to store ESP32 data
+esp32_data = {
+    'sensor_data': {
+        'humidity': 0,
+        'temperature': 0,
+        'uv_index': 0,
+        'last_update': 'N/A'
+    },
+    'esp32_status': 'disconnected',
+    'led_status': 'OFF',
+    'led_state': 'off'
+}
+
+def save_sensor_data(humidity, temperature, uv_index):
+    """Save sensor data"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"Sensor data saved: T={temperature}C, H={humidity}%, UV={uv_index}")
+
+@app.route('/')
+def home():
+    """Main dashboard page"""
+    return render_template_string('''
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema IoT Inteligente - Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .card-subtitle {
+            font-size: 0.9rem;
+            color: #666;
+            margin: 5px 0 0 0;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #007bff;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .temperature { border-left-color: #dc3545; }
+        .humidity { border-left-color: #17a2b8; }
+        .uv { border-left-color: #ffc107; }
+
+        .temperature .metric-value { color: #dc3545; }
+        .humidity .metric-value { color: #17a2b8; }
+        .uv .metric-value { color: #ffc107; }
+
+        .btn {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background: #dc3545;
+        }
+
+        .status-text {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .control-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .control-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+
+        .footer-content p {
+            margin: 5px 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Sistema IoT Inteligente</h1>
+            <p>Monitoreo y Control en Tiempo Real</p>
+        </header>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Sensor Data Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                        <i class="fas fa-thermometer-half"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Datos del Sensor</h3>
+                        <p class="card-subtitle">Temperatura, Humedad y UV Index</p>
+                    </div>
+                </div>
+                
+                <div class="metric temperature">
+                    <span class="metric-label">Temperatura</span>
+                    <span class="metric-value" id="temperature-value">{{ esp32_data.sensor_data.temperature }}</span>
+                </div>
+                
+                <div class="metric humidity">
+                    <span class="metric-label">Humedad</span>
+                    <span class="metric-value" id="humidity-value">{{ esp32_data.sensor_data.humidity }}</span>
+                </div>
+                
+                <div class="metric uv">
+                    <span class="metric-label">UV Index</span>
+                    <span class="metric-value" id="uv-value">{{ esp32_data.sensor_data.uv_index }}</span>
+                </div>
+                
+                <div class="control-section">
+                    <div class="control-buttons">
+                        <button class="btn btn-success" onclick="testSensor()">
+                            <i class="fas fa-play"></i> Test Sensor
+                        </button>
+                        <button class="btn btn-warning" onclick="testAlert()">
+                            <i class="fas fa-exclamation-triangle"></i> Test Alert
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connection Status Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #17a2b8, #138496);">
+                        <i class="fas fa-wifi"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Estado de Conexion</h3>
+                        <p class="card-subtitle">Estado del ESP32</p>
+                    </div>
+                </div>
+                
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span class="status-text" id="connection-status">Desconectado</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Ultima Actualizacion</span>
+                    <div class="metric-value" id="last-update" style="font-size: 1rem;">{{ esp32_data.sensor_data.last_update }}</div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Proxima Lectura</span>
+                    <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">1 hora</div>
+                </div>
+            </div>
+
+            <!-- LED Control Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Control LED</h3>
+                        <p class="card-subtitle">Control del LED del ESP32</p>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label">Estado LED</span>
+                    <div class="metric-value" id="led-status-display" style="font-size: 1.2rem;">{{ esp32_data.led_status }}</div>
+                </div>
+                
+                <div class="control-section">
+                    <div class="control-buttons">
+                        <button class="btn btn-success" onclick="controlLED('on')">
+                            <i class="fas fa-power-off"></i> Encender
+                        </button>
+                        <button class="btn btn-danger" onclick="controlLED('off')">
+                            <i class="fas fa-power-off"></i> Apagar
+                        </button>
+                        <button class="btn btn-warning" onclick="controlLED('blink')">
+                            <i class="fas fa-blink"></i> Parpadear
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p>&copy; 2024 Sistema IoT Inteligente - Monitoreo y Control en Tiempo Real</p>
+                <p>Desarrollado para Instrumentacion y Medicion</p>
+            </div>
+        </footer>
+
+        <script>
+            // Test alert function
+            function testAlert() {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = 'Sending...';
+
+                fetch('/test-alert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Alerta de prueba enviada! Temperatura: 38.5C');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = 'Test Alert';
+                });
+            }
+
+            // LED Control Functions
+            function controlLED(action) {
+                const buttons = document.querySelectorAll('.btn');
+                buttons.forEach(btn => btn.disabled = true);
+                
+                fetch('/led-control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: action })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        updateLEDStatus(data.led_status, data.led_state);
+                        console.log('LED Control:', data.message);
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                })
+                .finally(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                });
+            }
+            
+            // Sensor Test Function
+            function testSensor() {
+                const button = event.target;
+                button.disabled = true;
+                button.textContent = 'Requesting...';
+                
+                fetch('/test-sensor', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log('Sensor Test:', data.message);
+                        alert('Sensor test request sent! Check the indicators for new data.');
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                })
+                .finally(() => {
+                    button.disabled = false;
+                    button.textContent = 'Test Sensor';
+                });
+            }
+
+            function updateLEDStatus(status, state) {
+                const statusDisplay = document.getElementById('led-status-display');
+                
+                statusDisplay.textContent = status;
+                
+                // Update colors based on status
+                if (status === 'ON') {
+                    statusDisplay.style.color = '#28a745';
+                } else if (status === 'BLINKING') {
+                    statusDisplay.style.color = '#ffc107';
+                } else {
+                    statusDisplay.style.color = '#6c757d';
+                }
+            }
+
+            function loadLEDStatus() {
+                fetch('/led-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        updateLEDStatus(data.led_status, data.led_state);
+                    }
+                })
+                .catch(error => {
+                    console.log('Error loading LED status:', error);
+                });
+            }
+
+            function checkConnectionStatus() {
+                fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    updateConnectionStatus(data);
+                })
+                .catch(error => {
+                    console.log('Error checking connection:', error);
+                });
+            }
+
+            function updateConnectionStatus(data) {
+                const statusElement = document.getElementById('connection-status');
+                const statusDot = document.querySelector('.status-dot');
+                
+                if (data.esp32_status === 'connected') {
+                    statusElement.textContent = 'Conectado';
+                    statusDot.style.background = '#28a745';
+                } else {
+                    statusElement.textContent = 'Desconectado';
+                    statusDot.style.background = '#dc3545';
+                }
+            }
+
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                // Load LED status
+                loadLEDStatus();
+                
+                // Check connection status periodically
+                setInterval(checkConnectionStatus, 5000); // Every 5 seconds
+                
+                // Auto-refresh every hour
+                setInterval(() => {
+                    location.reload();
+                }, 3600000);
+            });
+        </script>
+    </body>
+</html>
+    ''', esp32_data=esp32_data)
+
+@app.route('/data', methods=['GET', 'POST'])
+def receive_sensor_data():
+    """Receive sensor data from ESP32"""
+    try:
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            humidity = data.get('humidity')
+            temperature = data.get('temperature')
+            uv_index = data.get('uv_index', 0)
+
+            if humidity is None or temperature is None:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Missing sensor data. Required: humidity, temperature'
+                }), 400
+
+            save_sensor_data(humidity, temperature, uv_index)
+
+            esp32_data['sensor_data'] = {
+                'humidity': humidity,
+                'temperature': temperature,
+                'uv_index': uv_index,
+                'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            esp32_data['esp32_status'] = 'connected'
+
+            response = {
+                'status': 'success',
+                'message': 'Sensor data received and saved',
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'data': {
+                    'humidity': humidity,
+                    'temperature': temperature,
+                    'uv_index': uv_index
+                }
+            }
+            return jsonify(response)
+        else:
+            # GET request - return current data
+            return jsonify(esp32_data)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/test-sensor', methods=['POST'])
+def test_sensor():
+    """Test sensor endpoint"""
+    try:
+        data = request.get_json() or {}
+        
+        # Simulate sensor test
+        test_data = {
+            'humidity': 45.2,
+            'temperature': 23.8,
+            'uv_index': 3.5
+        }
+        
+        save_sensor_data(test_data['humidity'], test_data['temperature'], test_data['uv_index'])
+        
+        esp32_data['sensor_data'] = {
+            'humidity': test_data['humidity'],
+            'temperature': test_data['temperature'],
+            'uv_index': test_data['uv_index'],
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        esp32_data['esp32_status'] = 'connected'
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Sensor test completed successfully',
+            'data': test_data
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/test-alert', methods=['POST'])
+def test_alert():
+    """Test alert endpoint"""
+    try:
+        # Simulate high temperature alert
+        test_data = {
+            'humidity': 30.0,
+            'temperature': 38.5,
+            'uv_index': 8.2
+        }
+        
+        save_sensor_data(test_data['humidity'], test_data['temperature'], test_data['uv_index'])
+        
+        esp32_data['sensor_data'] = {
+            'humidity': test_data['humidity'],
+            'temperature': test_data['temperature'],
+            'uv_index': test_data['uv_index'],
+            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        esp32_data['esp32_status'] = 'connected'
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Alert test completed - High temperature simulated',
+            'data': test_data
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/led-control', methods=['POST'])
+def led_control():
+    """Control LED on ESP32"""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', 'off')
+        
+        # Simulate LED control
+        if action == 'on':
+            esp32_data['led_status'] = 'ON'
+            esp32_data['led_state'] = 'on'
+        elif action == 'off':
+            esp32_data['led_status'] = 'OFF'
+            esp32_data['led_state'] = 'off'
+        elif action == 'blink':
+            esp32_data['led_status'] = 'BLINKING'
+            esp32_data['led_state'] = 'blink'
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'LED {action} command sent',
+            'led_status': esp32_data['led_status'],
+            'led_state': esp32_data['led_state']
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/led-status')
+def led_status():
+    """Get LED status"""
+    return jsonify({
+        'status': 'success',
+        'led_status': esp32_data['led_status'],
+        'led_state': esp32_data['led_state']
+    })
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
