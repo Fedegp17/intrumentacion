@@ -36,6 +36,9 @@ esp32_data = {
     'led_state': 'off'
 }
 
+# LED command queue for ESP32
+led_command_queue = None
+
 def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index):
     """Save sensor data to Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -50,13 +53,15 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
                 timestamp
             )
             if success:
-                pass  # Data saved successfully
+                print(f"Data saved to Supabase: T1={temperature1}, H1={humidity1}, T2={temperature2}, H2={humidity2}, SM1={soil_moisture1}, SM2={soil_moisture2}, UV={uv_index}")
             else:
-                pass  # Error saving to Supabase
+                print("ERROR: Failed to save to Supabase")
         except Exception as e:
-            pass  # Error with Supabase
+            print(f"ERROR saving to Supabase: {str(e)}")
+    else:
+        print("WARNING: Supabase not available")
     
-    # Sensor data saved
+    print(f"Sensor data saved: T1={temperature1}C, H1={humidity1}%, T2={temperature2}C, H2={humidity2}%, SM1={soil_moisture1}%, SM2={soil_moisture2}%, UV={uv_index}")
 
 def load_latest_data_from_supabase():
     """Load latest sensor data from Supabase"""
@@ -75,16 +80,24 @@ def load_latest_data_from_supabase():
                     'last_update': latest.get('timestamp', 'N/A')
                 }
                 esp32_data['esp32_status'] = 'connected'
+                print(f"Loaded latest data from Supabase: {esp32_data['sensor_data']}")
                 return True
+            else:
+                print("No data found in Supabase")
         except Exception as e:
-            pass  # Error loading from Supabase
+            print(f"ERROR loading from Supabase: {str(e)}")
+    else:
+        print("WARNING: Supabase not available for loading data")
     return False
 
 @app.route('/')
 def home():
     """Main dashboard page"""
     # Refresh data from Supabase on page load
-    load_latest_data_from_supabase()
+    try:
+        load_latest_data_from_supabase()
+    except Exception as e:
+        print(f"Error loading data on page load: {e}")
     
     return render_template_string('''
 <!DOCTYPE html>
@@ -570,10 +583,26 @@ def home():
 
             // Initialize on page load
             document.addEventListener('DOMContentLoaded', function() {
+                // Update with initial data from server
+                updateSensorData({
+                    temperature1: {{ esp32_data.sensor_data.temperature1 }},
+                    humidity1: {{ esp32_data.sensor_data.humidity1 }},
+                    temperature2: {{ esp32_data.sensor_data.temperature2 }},
+                    humidity2: {{ esp32_data.sensor_data.humidity2 }},
+                    soil_moisture1: {{ esp32_data.sensor_data.soil_moisture1 }},
+                    soil_moisture2: {{ esp32_data.sensor_data.soil_moisture2 }},
+                    uv_index: {{ esp32_data.sensor_data.uv_index }},
+                    last_update: '{{ esp32_data.sensor_data.last_update }}'
+                });
+                
+                updateConnectionStatus({
+                    esp32_status: '{{ esp32_data.esp32_status }}'
+                });
+                
                 // Start countdown timer
                 setInterval(updateCountdown, 1000);
                 
-                // Initial data refresh
+                // Initial data refresh from Supabase
                 refreshData();
             });
         </script>
@@ -662,11 +691,15 @@ def latest_data():
 @app.route('/led-control', methods=['POST'])
 def led_control():
     """Control LED on ESP32"""
+    global led_command_queue
     try:
         data = request.get_json() or {}
         action = data.get('action', 'off')
         
-        # Simulate LED control
+        # Store command for ESP32 to pick up
+        led_command_queue = action
+        
+        # Update local state
         if action == 'on':
             esp32_data['led_status'] = 'ON'
             esp32_data['led_state'] = 'on'
@@ -676,6 +709,8 @@ def led_control():
         elif action == 'blink':
             esp32_data['led_status'] = 'BLINKING'
             esp32_data['led_state'] = 'blink'
+        
+        print(f"LED command queued: {action}")
         
         return jsonify({
             'status': 'success',
@@ -688,12 +723,22 @@ def led_control():
 
 @app.route('/led-status')
 def led_status():
-    """Get LED status"""
-    return jsonify({
+    """Get LED status and return commands for ESP32"""
+    global led_command_queue
+    
+    response = {
         'status': 'success',
         'led_status': esp32_data['led_status'],
         'led_state': esp32_data['led_state']
-    })
+    }
+    
+    # If there's a command queued, send it to ESP32
+    if led_command_queue is not None:
+        response['led_command'] = led_command_queue
+        print(f"Sending LED command to ESP32: {led_command_queue}")
+        led_command_queue = None  # Clear command after sending
+    
+    return jsonify(response)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
