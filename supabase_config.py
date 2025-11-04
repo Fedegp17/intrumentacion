@@ -25,7 +25,7 @@ try:
         """Retorna el cliente de Supabase"""
         return supabase
     
-    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, timestamp):
+    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index, timestamp):
         """Inserta datos del sensor en Supabase"""
         try:
             data = {
@@ -35,6 +35,7 @@ try:
                 'humidity2': humidity2,
                 'soil_moisture1': soil_moisture1,
                 'soil_moisture2': soil_moisture2,
+                'uv_index': uv_index,
                 'timestamp': timestamp
             }
             result = supabase.table('sensor_data').insert(data).execute()
@@ -69,7 +70,7 @@ except (ImportError, ValueError, Exception) as e:
     def get_supabase_client():
         return None
     
-    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, timestamp):
+    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index, timestamp):
         return False
     
     def get_latest_sensor_data():

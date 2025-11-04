@@ -28,6 +28,7 @@ esp32_data = {
         'humidity2': 0,
         'soil_moisture1': 0,
         'soil_moisture2': 0,
+        'uv_index': 0,
         'last_update': 'N/A'
     },
     'esp32_status': 'disconnected',
@@ -35,7 +36,7 @@ esp32_data = {
     'led_state': 'off'
 }
 
-def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2):
+def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index):
     """Save sensor data to Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
@@ -45,6 +46,7 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
                 float(temperature1), float(humidity1), 
                 float(temperature2), float(humidity2),
                 float(soil_moisture1), float(soil_moisture2),
+                float(uv_index),
                 timestamp
             )
             if success:
@@ -69,6 +71,7 @@ def load_latest_data_from_supabase():
                     'humidity2': float(latest.get('humidity2', 0) or 0),
                     'soil_moisture1': float(latest.get('soil_moisture1', 0) or 0),
                     'soil_moisture2': float(latest.get('soil_moisture2', 0) or 0),
+                    'uv_index': float(latest.get('uv_index', 0) or 0),
                     'last_update': latest.get('timestamp', 'N/A')
                 }
                 esp32_data['esp32_status'] = 'connected'
@@ -210,10 +213,12 @@ def home():
         .temperature { border-left-color: #dc3545; }
         .humidity { border-left-color: #17a2b8; }
         .soil { border-left-color: #28a745; }
+        .uv { border-left-color: #ffc107; }
 
         .temperature .metric-value { color: #dc3545; }
         .humidity .metric-value { color: #17a2b8; }
         .soil .metric-value { color: #28a745; }
+        .uv .metric-value { color: #ffc107; }
 
         .btn {
             background: linear-gradient(135deg, #007bff, #0056b3);
@@ -369,13 +374,31 @@ def home():
                     </div>
                     <div>
                         <h3 class="card-title">Humedad de Suelo 2</h3>
-                        <p class="card-subtitle">GPIO 39 (ADC - VP)</p>
+                        <p class="card-subtitle">GPIO 34 (ADC)</p>
                     </div>
                 </div>
                 
                 <div class="metric soil">
                     <span class="metric-label">Humedad</span>
                     <span class="metric-value" id="soil2-value">{{ esp32_data.sensor_data.soil_moisture2 }}</span><span style="font-size: 1rem;">%</span>
+                </div>
+            </div>
+
+            <!-- UV Sensor Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
+                        <i class="fas fa-sun"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Sensor UV</h3>
+                        <p class="card-subtitle">GPIO 33 (ADC)</p>
+                    </div>
+                </div>
+                
+                <div class="metric uv">
+                    <span class="metric-label">UV Index</span>
+                    <span class="metric-value" id="uv-value">{{ esp32_data.sensor_data.uv_index }}</span>
                 </div>
             </div>
 
@@ -528,6 +551,7 @@ def home():
                 document.getElementById('humidity2-value').textContent = sensorData.humidity2.toFixed(1);
                 document.getElementById('soil1-value').textContent = sensorData.soil_moisture1.toFixed(1);
                 document.getElementById('soil2-value').textContent = sensorData.soil_moisture2.toFixed(1);
+                document.getElementById('uv-value').textContent = sensorData.uv_index.toFixed(1);
                 document.getElementById('last-update').textContent = sensorData.last_update;
             }
             
@@ -569,6 +593,7 @@ def receive_sensor_data():
             humidity2 = data.get('humidity2')
             soil_moisture1 = data.get('soil_moisture1')
             soil_moisture2 = data.get('soil_moisture2')
+            uv_index = data.get('uv_index')
 
             if temperature1 is None or humidity1 is None:
                 return jsonify({
@@ -576,7 +601,7 @@ def receive_sensor_data():
                     'message': 'Missing sensor data. Required: temperature1, humidity1'
                 }), 400
 
-            # Use defaults if sensor 2 or soil sensors are not provided
+            # Use defaults if sensor 2, soil sensors, or UV are not provided
             if temperature2 is None:
                 temperature2 = 0.0
             if humidity2 is None:
@@ -585,8 +610,10 @@ def receive_sensor_data():
                 soil_moisture1 = 0.0
             if soil_moisture2 is None:
                 soil_moisture2 = 0.0
+            if uv_index is None:
+                uv_index = 0.0
 
-            save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2)
+            save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index)
 
             esp32_data['sensor_data'] = {
                 'temperature1': temperature1,
@@ -595,6 +622,7 @@ def receive_sensor_data():
                 'humidity2': humidity2,
                 'soil_moisture1': soil_moisture1,
                 'soil_moisture2': soil_moisture2,
+                'uv_index': uv_index,
                 'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             esp32_data['esp32_status'] = 'connected'

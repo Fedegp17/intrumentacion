@@ -22,9 +22,13 @@ DHT dht2(DHT_PIN_2, DHT_TYPE);
 
 // Soil moisture sensor configuration
 #define SOIL_MOISTURE_PIN_1 35  // GPIO 35 (ADC1_CH7) - First soil moisture sensor
-#define SOIL_MOISTURE_PIN_2 39  // GPIO 39 (ADC1_CH3) - Second soil moisture sensor (VP pin)
+#define SOIL_MOISTURE_PIN_2 34  // GPIO 34 (ADC1_CH6) - Second soil moisture sensor
 #define ADC_RESOLUTION 12       // ADC resolution (12-bit = 4096 levels)
 #define ADC_VREF 3.3            // Reference voltage (3.3V)
+
+// UV Sensor configuration (GUVA-S12SD)
+#define UV_PIN 33               // GPIO 33 (ADC1_CH5) - UV sensor analog output
+#define UV_SENSITIVITY 0.1      // Sensitivity in V per UV index unit
 
 // Timing configuration
 unsigned long lastConnectionAttempt = 0;
@@ -50,6 +54,9 @@ float humidity2 = 0.0;
 float soilMoisture1 = 0.0;  // Percentage (0-100%)
 float soilMoisture2 = 0.0;  // Percentage (0-100%)
 
+// Sensor data variables - UV Sensor
+float uvIndex = 0.0;  // UV Index (0-15)
+
 // LED control variables
 bool ledState = false;
 bool ledBlinking = false;
@@ -73,9 +80,10 @@ void setup() {
   dht2.begin();
   Serial.println("DHT11 sensor 2 initialized on GPIO 4");
   
-  // Initialize ADC for soil moisture sensors
+  // Initialize ADC for soil moisture sensors and UV sensor
   analogReadResolution(ADC_RESOLUTION);
-  Serial.println("Soil moisture sensors initialized on GPIO 35 and GPIO 39");
+  Serial.println("Soil moisture sensors initialized on GPIO 35 and GPIO 34");
+  Serial.println("UV sensor initialized on GPIO 33");
   
   // Test sensors on startup
   Serial.println("Testing sensors...");
@@ -87,7 +95,8 @@ void setup() {
   Serial.printf("DHT11 Sensor 1 (GPIO 2): Temperature=%.2fC, Humidity=%.2f%%\n", temperature1, humidity1);
   Serial.printf("DHT11 Sensor 2 (GPIO 4): Temperature=%.2fC, Humidity=%.2f%%\n", temperature2, humidity2);
   Serial.printf("Soil Moisture Sensor 1 (GPIO 35): %.2f%%\n", soilMoisture1);
-  Serial.printf("Soil Moisture Sensor 2 (GPIO 39): %.2f%%\n", soilMoisture2);
+  Serial.printf("Soil Moisture Sensor 2 (GPIO 34): %.2f%%\n", soilMoisture2);
+  Serial.printf("UV Sensor (GPIO 33): UV Index=%.2f\n", uvIndex);
   Serial.println("===========================\n");
   
   // Connect to WiFi
@@ -96,7 +105,7 @@ void setup() {
   Serial.println("ESP32 Multi-Sensor Monitor Ready!");
   Serial.println("Will send data every 5 minutes");
   Serial.println("LED control enabled - checking commands every 10 seconds");
-  Serial.println("Sensors: 2x DHT11 (Temperature/Humidity) + 2x Soil Moisture");
+  Serial.println("Sensors: 2x DHT11 + 2x Soil Moisture + 1x UV");
   Serial.println("--------------------------------");
 }
 
@@ -122,7 +131,8 @@ void loop() {
     Serial.printf("DHT11 Sensor 1 (GPIO 2): Temperature=%.2fC, Humidity=%.2f%%\n", temperature1, humidity1);
     Serial.printf("DHT11 Sensor 2 (GPIO 4): Temperature=%.2fC, Humidity=%.2f%%\n", temperature2, humidity2);
     Serial.printf("Soil Moisture Sensor 1 (GPIO 35): %.2f%%\n", soilMoisture1);
-    Serial.printf("Soil Moisture Sensor 2 (GPIO 39): %.2f%%\n", soilMoisture2);
+    Serial.printf("Soil Moisture Sensor 2 (GPIO 34): %.2f%%\n", soilMoisture2);
+    Serial.printf("UV Sensor (GPIO 33): UV Index=%.2f\n", uvIndex);
     Serial.println("===========================\n");
     
     lastSensorReading = currentTime;
@@ -193,6 +203,7 @@ void readAllSensors() {
   readDHT11Sensor2();
   readSoilMoistureSensor1();
   readSoilMoistureSensor2();
+  readUVSensor();
 }
 
 void readDHT11Sensor1() {
@@ -305,7 +316,7 @@ void readSoilMoistureSensor1() {
 
 void readSoilMoistureSensor2() {
   Serial.println("Starting soil moisture sensor 2 reading...");
-  Serial.println("Pin: GPIO 39 (ADC - VP pin)");
+  Serial.println("Pin: GPIO 34 (ADC)");
   
   // Read analog value from soil moisture sensor
   int rawValue = analogRead(SOIL_MOISTURE_PIN_2);
@@ -336,6 +347,38 @@ void readSoilMoistureSensor2() {
   Serial.println("--------------------------------");
 }
 
+void readUVSensor() {
+  Serial.println("Starting UV sensor reading...");
+  Serial.println("Pin: GPIO 33 (ADC)");
+  
+  // Read analog value from UV sensor
+  int rawValue = analogRead(UV_PIN);
+  
+  // Convert to voltage
+  float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
+  
+  // Convert voltage to UV index
+  // GUVA-S12SD: approximately 0.1V per UV index unit
+  float newUVIndex = voltage / UV_SENSITIVITY;
+  
+  // Clamp UV index to reasonable range (0-15)
+  if (newUVIndex < 0) newUVIndex = 0;
+  if (newUVIndex > 15) newUVIndex = 15;
+  
+  Serial.printf("Raw readings - ADC: %d, Voltage: %.3fV, UV Index: %.1f\n", 
+                rawValue, voltage, newUVIndex);
+  
+  // Update global variable
+  uvIndex = newUVIndex;
+  
+  Serial.println("UV Sensor Reading SUCCESS:");
+  Serial.printf("  UV Index: %.1f\n", uvIndex);
+  Serial.printf("  Voltage: %.3fV\n", voltage);
+  Serial.printf("  Raw ADC: %d\n", rawValue);
+  Serial.println("Data ready for transmission");
+  Serial.println("--------------------------------");
+}
+
 void sendSensorData() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("No WiFi connection. Cannot send data.");
@@ -347,6 +390,7 @@ void sendSensorData() {
   Serial.printf("  DHT11-2 - Temperature: %.1fC, Humidity: %.1f%%\n", temperature2, humidity2);
   Serial.printf("  Soil Moisture 1: %.1f%%\n", soilMoisture1);
   Serial.printf("  Soil Moisture 2: %.1f%%\n", soilMoisture2);
+  Serial.printf("  UV Index: %.1f\n", uvIndex);
   
   HTTPClient http;
   String url = String(serverURL) + "/data";
@@ -362,6 +406,7 @@ void sendSensorData() {
   doc["humidity2"] = humidity2;
   doc["soil_moisture1"] = soilMoisture1;
   doc["soil_moisture2"] = soilMoisture2;
+  doc["uv_index"] = uvIndex;
   
   String jsonString;
   serializeJson(doc, jsonString);
