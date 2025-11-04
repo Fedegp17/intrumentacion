@@ -26,12 +26,12 @@
   - Sensor suelo #1 en GPIO 35
   - Sensor suelo #2 en GPIO 36
 - [ ] WiFi conectado
-- [ ] URL del servidor: `https://intrumentacion.vercel.app`
+- [ ] URL del servidor: `https://intrumentacion-7fkz.vercel.app`
 
 ## 🔍 Como Verificar que Todo Funciona
 
 ### 1. Verificar Vercel
-- Abre: https://intrumentacion.vercel.app
+- Abre: https://intrumentacion-7fkz.vercel.app
 - Deberias ver el dashboard con todos los sensores
 - Si ves errores, revisa los logs en Vercel Dashboard
 

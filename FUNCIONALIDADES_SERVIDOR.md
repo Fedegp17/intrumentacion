@@ -154,7 +154,7 @@
 ## 🚀 Como Usar el Servidor
 
 ### 1. El servidor esta desplegado en Vercel
-- URL: `https://intrumentacion.vercel.app`
+- URL: `https://intrumentacion-7fkz.vercel.app`
 - Funciona 24/7 automaticamente
 - No requiere mantenimiento
 
@@ -169,7 +169,7 @@
 - Muestra informacion en tiempo real
 
 ### 4. Ver datos manualmente
-- Abre: `https://intrumentacion.vercel.app`
+- Abre: `https://intrumentacion-7fkz.vercel.app`
 - Veras todos los sensores actualizados
 - Los datos se actualizan automaticamente
 

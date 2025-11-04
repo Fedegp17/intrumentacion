@@ -8,7 +8,7 @@ const char* ssid = "MEGACABLE-2.4G-F6A3";
 const char* password = "mKyUQGz295";
 
 // Server configuration
-const char* serverURL = "https://intrumentacion.vercel.app";  // URL de Vercel
+const char* serverURL = "https://intrumentacion-7fkz.vercel.app";  // URL de Vercel
 const int LED_PIN = 13;  // LED interno del ESP32
 
 // DHT11 sensor configuration - Sensor 1

@@ -33,7 +33,7 @@
 3. Deberias ver un nuevo registro con todos los valores
 
 ### Test 2: Verificar que la pagina muestra datos
-1. Abre: https://intrumentacion.vercel.app
+1. Abre: https://intrumentacion-7fkz.vercel.app
 2. Presiona "Actualizar Datos Ahora"
 3. Deberias ver los valores de los sensores actualizados
 

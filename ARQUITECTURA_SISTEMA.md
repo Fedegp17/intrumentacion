@@ -139,7 +139,7 @@ UV Sensor (GPIO 33): UV Index=3.50
 ```
 ESP32 → sendSensorData()
   ├─→ Crea JSON con todos los datos
-  ├─→ POST a https://intrumentacion.vercel.app/data
+  ├─→ POST a https://intrumentacion-7fkz.vercel.app/data
   └─→ Recibe respuesta del servidor
 ```
 
@@ -252,7 +252,7 @@ Dashboard Web → GET /latest-data
 
 **Proceso:**
 ```
-Usuario → Abre https://intrumentacion.vercel.app
+Usuario → Abre https://intrumentacion-7fkz.vercel.app
   ├─→ Flask renderiza HTML con datos iniciales
   ├─→ JavaScript carga datos desde /latest-data
   ├─→ Actualiza valores en la pagina
@@ -388,9 +388,9 @@ T=5:00  ESP32 envia nuevos datos
 
 ## 🔗 URLs y Endpoints
 
-- **Dashboard:** https://intrumentacion.vercel.app
-- **API Data:** https://intrumentacion.vercel.app/data
-- **API Latest:** https://intrumentacion.vercel.app/latest-data
-- **API LED:** https://intrumentacion.vercel.app/led-control
-- **API LED Status:** https://intrumentacion.vercel.app/led-status
+- **Dashboard:** https://intrumentacion-7fkz.vercel.app
+- **API Data:** https://intrumentacion-7fkz.vercel.app/data
+- **API Latest:** https://intrumentacion-7fkz.vercel.app/latest-data
+- **API LED:** https://intrumentacion-7fkz.vercel.app/led-control
+- **API LED Status:** https://intrumentacion-7fkz.vercel.app/led-status
 
