@@ -369,7 +369,7 @@ def home():
                     </div>
                     <div>
                         <h3 class="card-title">Humedad de Suelo 2</h3>
-                        <p class="card-subtitle">GPIO 36 (ADC)</p>
+                        <p class="card-subtitle">GPIO 39 (ADC - VP)</p>
                     </div>
                 </div>
                 
@@ -399,6 +399,34 @@ def home():
                 <div class="metric">
                     <span class="metric-label">Ultima Actualizacion</span>
                     <div class="metric-value" id="last-update" style="font-size: 1rem;">{{ esp32_data.sensor_data.last_update }}</div>
+                </div>
+            </div>
+
+            <!-- Control Panel Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
+                        <i class="fas fa-sliders-h"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Panel de Control</h3>
+                        <p class="card-subtitle">Acciones disponibles</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn btn-success" onclick="fetchData()" style="width: 100%;">
+                        <i class="fas fa-sync-alt"></i> Actualizar Datos Ahora
+                    </button>
+                    <button class="btn btn-warning" onclick="testLED('on')" style="width: 100%;">
+                        <i class="fas fa-lightbulb"></i> Probar LED - Encender
+                    </button>
+                    <button class="btn btn-warning" onclick="testLED('off')" style="width: 100%;">
+                        <i class="fas fa-lightbulb"></i> Probar LED - Apagar
+                    </button>
+                    <button class="btn btn-warning" onclick="testLED('blink')" style="width: 100%;">
+                        <i class="fas fa-lightbulb"></i> Probar LED - Parpadear
+                    </button>
                 </div>
             </div>
         </div>
@@ -446,6 +474,51 @@ def home():
                     .catch(error => {
                         console.log('Error refrescando datos:', error);
                     });
+            }
+            
+            function fetchData() {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+                
+                refreshData();
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    alert('Datos actualizados desde Supabase!');
+                }, 1000);
+            }
+            
+            function testLED(action) {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+                
+                fetch('/led-control', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: action })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Comando LED enviado: ' + action);
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error);
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                });
             }
             
             function updateSensorData(sensorData) {
@@ -557,6 +630,33 @@ def latest_data():
             'esp32_status': esp32_data.get('esp32_status', 'disconnected'),
             'warning': f'Error loading from Supabase: {str(e)}'
         })
+
+@app.route('/led-control', methods=['POST'])
+def led_control():
+    """Control LED on ESP32"""
+    try:
+        data = request.get_json() or {}
+        action = data.get('action', 'off')
+        
+        # Simulate LED control
+        if action == 'on':
+            esp32_data['led_status'] = 'ON'
+            esp32_data['led_state'] = 'on'
+        elif action == 'off':
+            esp32_data['led_status'] = 'OFF'
+            esp32_data['led_state'] = 'off'
+        elif action == 'blink':
+            esp32_data['led_status'] = 'BLINKING'
+            esp32_data['led_state'] = 'blink'
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'LED {action} command sent',
+            'led_status': esp32_data['led_status'],
+            'led_state': esp32_data['led_state']
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/led-status')
 def led_status():

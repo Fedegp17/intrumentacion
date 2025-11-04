@@ -22,7 +22,7 @@ DHT dht2(DHT_PIN_2, DHT_TYPE);
 
 // Soil moisture sensor configuration
 #define SOIL_MOISTURE_PIN_1 35  // GPIO 35 (ADC1_CH7) - First soil moisture sensor
-#define SOIL_MOISTURE_PIN_2 36  // GPIO 36 (ADC1_CH0) - Second soil moisture sensor
+#define SOIL_MOISTURE_PIN_2 39  // GPIO 39 (ADC1_CH3) - Second soil moisture sensor (VP pin)
 #define ADC_RESOLUTION 12       // ADC resolution (12-bit = 4096 levels)
 #define ADC_VREF 3.3            // Reference voltage (3.3V)
 
@@ -75,12 +75,20 @@ void setup() {
   
   // Initialize ADC for soil moisture sensors
   analogReadResolution(ADC_RESOLUTION);
-  Serial.println("Soil moisture sensors initialized on GPIO 35 and GPIO 36");
+  Serial.println("Soil moisture sensors initialized on GPIO 35 and GPIO 39");
   
   // Test sensors on startup
   Serial.println("Testing sensors...");
   delay(2000);  // Wait for sensors to stabilize
   readAllSensors();
+  
+  // Print all sensor readings
+  Serial.println("\n=== ALL SENSOR READINGS ===");
+  Serial.printf("DHT11 Sensor 1 (GPIO 2): Temperature=%.2fC, Humidity=%.2f%%\n", temperature1, humidity1);
+  Serial.printf("DHT11 Sensor 2 (GPIO 4): Temperature=%.2fC, Humidity=%.2f%%\n", temperature2, humidity2);
+  Serial.printf("Soil Moisture Sensor 1 (GPIO 35): %.2f%%\n", soilMoisture1);
+  Serial.printf("Soil Moisture Sensor 2 (GPIO 39): %.2f%%\n", soilMoisture2);
+  Serial.println("===========================\n");
   
   // Connect to WiFi
   connectToWiFi();
@@ -108,6 +116,15 @@ void loop() {
   // Read sensors every minute
   if (currentTime - lastSensorReading > sensorInterval) {
     readAllSensors();
+    
+    // Print all sensor readings to Serial Monitor
+    Serial.println("\n=== ALL SENSOR READINGS ===");
+    Serial.printf("DHT11 Sensor 1 (GPIO 2): Temperature=%.2fC, Humidity=%.2f%%\n", temperature1, humidity1);
+    Serial.printf("DHT11 Sensor 2 (GPIO 4): Temperature=%.2fC, Humidity=%.2f%%\n", temperature2, humidity2);
+    Serial.printf("Soil Moisture Sensor 1 (GPIO 35): %.2f%%\n", soilMoisture1);
+    Serial.printf("Soil Moisture Sensor 2 (GPIO 39): %.2f%%\n", soilMoisture2);
+    Serial.println("===========================\n");
+    
     lastSensorReading = currentTime;
   }
   
@@ -288,7 +305,7 @@ void readSoilMoistureSensor1() {
 
 void readSoilMoistureSensor2() {
   Serial.println("Starting soil moisture sensor 2 reading...");
-  Serial.println("Pin: GPIO 36 (ADC)");
+  Serial.println("Pin: GPIO 39 (ADC - VP pin)");
   
   // Read analog value from soil moisture sensor
   int rawValue = analogRead(SOIL_MOISTURE_PIN_2);
