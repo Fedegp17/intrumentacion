@@ -3,12 +3,19 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 
-// WiFi credentials
-const char* ssid = "MEGACABLE-2.4G-F6A3";
-const char* password = "mKyUQGz295";
+// WiFi credentials - DISABLED FOR SENSOR TESTING
+// Credenciales guardadas en CREDENCIALES.txt
+// Para reactivar, descomentar estas lineas y comentar las de abajo
+const char* ssid = "";  // DISABLED - Ver CREDENCIALES.txt
+const char* password = "";  // DISABLED - Ver CREDENCIALES.txt
+// const char* ssid = "MEGACABLE-2.4G-F6A3";
+// const char* password = "mKyUQGz295";
 
-// Server configuration
-const char* serverURL = "https://intrumentacion-7fkz.vercel.app";  // URL de Vercel
+// Server configuration - DISABLED FOR SENSOR TESTING
+// URL guardada en CREDENCIALES.txt
+// Para reactivar, descomentar estas lineas y comentar las de abajo
+const char* serverURL = "";  // DISABLED - Ver CREDENCIALES.txt
+// const char* serverURL = "https://intrumentacion-7fkz.vercel.app";  // URL de Vercel
 const int LED_PIN = 13;  // LED interno del ESP32
 
 // DHT11 sensor configuration - Sensor 1
@@ -99,12 +106,11 @@ void setup() {
   Serial.printf("UV Sensor (GPIO 33): UV Index=%.2f\n", uvIndex);
   Serial.println("===========================\n");
   
-  // Connect to WiFi
-  connectToWiFi();
+  // Connect to WiFi - DISABLED FOR SENSOR TESTING
+  // connectToWiFi();
   
   Serial.println("ESP32 Multi-Sensor Monitor Ready!");
-  Serial.println("Will send data every 5 minutes");
-  Serial.println("LED control enabled - checking commands every 10 seconds");
+  Serial.println("MODE: SENSOR TESTING - WiFi and server disabled");
   Serial.println("Sensors: 2x DHT11 + 2x Soil Moisture + 1x UV");
   Serial.println("--------------------------------");
 }
@@ -112,7 +118,8 @@ void setup() {
 void loop() {
   unsigned long currentTime = millis();
   
-  // Check WiFi connection
+  // WiFi connection check - DISABLED FOR SENSOR TESTING
+  /*
   if (WiFi.status() != WL_CONNECTED) {
     if (currentTime - lastConnectionAttempt > connectionInterval) {
       Serial.println("WiFi disconnected. Attempting reconnection...");
@@ -121,6 +128,7 @@ void loop() {
     }
     return;
   }
+  */
   
   // Read sensors every minute
   if (currentTime - lastSensorReading > sensorInterval) {
@@ -138,21 +146,25 @@ void loop() {
     lastSensorReading = currentTime;
   }
   
-  // Send data to server every 5 minutes
+  // Send data to server - DISABLED FOR SENSOR TESTING
+  /*
   if (currentTime - lastDataSend > dataSendInterval) {
     sendSensorData();
     lastDataSend = currentTime;
   }
+  */
   
   // Update LED state (for blinking)
   updateLED();
   
-  // Check for server commands every 10 seconds
+  // Check for server commands - DISABLED FOR SENSOR TESTING
+  /*
   static unsigned long lastCommandCheck = 0;
   if (currentTime - lastCommandCheck > 10000) {  // Every 10 seconds
     checkServerCommands();
     lastCommandCheck = currentTime;
   }
+  */
   
   delay(1000);  // Small delay to prevent overwhelming the system
 }

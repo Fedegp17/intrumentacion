@@ -1,0 +1,14 @@
+# Credenciales WiFi y Servidor
+# Guardadas para uso futuro
+
+## WiFi Credentials
+SSID: MEGACABLE-2.4G-F6A3
+Password: mKyUQGz295
+
+## Server Configuration
+Server URL: https://intrumentacion-7fkz.vercel.app
+
+## Notas
+- Estas credenciales estan deshabilitadas temporalmente para pruebas de sensores
+- Para reactivar, descomentar las secciones de WiFi y envio de datos en principal_code.ino
+
