@@ -12,10 +12,10 @@ def test_python():
     try:
         import sys
         version = sys.version.split()[0]
-        print(f"   ✓ Python {version} instalado")
+        print(f"   [OK] Python {version} instalado")
         return True
     except Exception as e:
-        print(f"   ✗ Error: {e}")
+        print(f"   [ERROR] Error: {e}")
         return False
 
 def test_requests():
@@ -23,10 +23,10 @@ def test_requests():
     print("2. Verificando libreria 'requests'...")
     try:
         import requests
-        print(f"   ✓ requests {requests.__version__} instalado")
+        print(f"   [OK] requests {requests.__version__} instalado")
         return True
     except ImportError:
-        print("   ✗ 'requests' no esta instalado")
+        print("   [ERROR] 'requests' no esta instalado")
         print("   Ejecuta: pip install requests")
         return False
 
@@ -37,17 +37,17 @@ def test_vercel():
         url = "https://intrumentacion-7fkz.vercel.app"
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
-            print(f"   ✓ Vercel responde (Status: {response.status_code})")
+            print(f"   [OK] Vercel responde (Status: {response.status_code})")
             return True
         else:
-            print(f"   ⚠ Vercel responde pero con status: {response.status_code}")
+            print(f"   [WARN] Vercel responde pero con status: {response.status_code}")
             return True  # Aun asi esta conectado
     except requests.exceptions.ConnectionError:
-        print("   ✗ No se puede conectar a Vercel")
+        print("   [ERROR] No se puede conectar a Vercel")
         print("   Verifica que el servidor este desplegado")
         return False
     except Exception as e:
-        print(f"   ✗ Error: {e}")
+        print(f"   [ERROR] Error: {e}")
         return False
 
 def test_endpoint():
@@ -56,13 +56,13 @@ def test_endpoint():
     try:
         url = "https://intrumentacion-7fkz.vercel.app/data"
         response = requests.get(url, timeout=5)
-        print(f"   ✓ Endpoint /data existe (Status: {response.status_code})")
+        print(f"   [OK] Endpoint /data existe (Status: {response.status_code})")
         return True
     except requests.exceptions.ConnectionError:
-        print("   ✗ No se puede conectar al endpoint")
+        print("   [ERROR] No se puede conectar al endpoint")
         return False
     except Exception as e:
-        print(f"   ✗ Error: {e}")
+        print(f"   [ERROR] Error: {e}")
         return False
 
 def test_send_dummy():
@@ -81,14 +81,14 @@ def test_send_dummy():
         }
         response = requests.post(url, json=data, timeout=10)
         if response.status_code == 200:
-            print(f"   ✓ Datos enviados correctamente (Status: {response.status_code})")
+            print(f"   [OK] Datos enviados correctamente (Status: {response.status_code})")
             return True
         else:
-            print(f"   ⚠ Error al enviar (Status: {response.status_code})")
+            print(f"   [WARN] Error al enviar (Status: {response.status_code})")
             print(f"   Respuesta: {response.text[:100]}")
             return False
     except Exception as e:
-        print(f"   ✗ Error: {e}")
+        print(f"   [ERROR] Error: {e}")
         return False
 
 def main():
@@ -112,12 +112,12 @@ def main():
     total = len(results)
     
     if passed == total:
-        print(f"✓ Todas las pruebas pasaron ({passed}/{total})")
+        print(f"[OK] Todas las pruebas pasaron ({passed}/{total})")
         print("\nTodo esta listo! Puedes ejecutar:")
         print("  python test_dummy_data.py")
         sys.exit(0)
     else:
-        print(f"✗ Algunas pruebas fallaron ({passed}/{total})")
+        print(f"[ERROR] Algunas pruebas fallaron ({passed}/{total})")
         print("\nRevisa los errores arriba y corrige los problemas.")
         sys.exit(1)
 

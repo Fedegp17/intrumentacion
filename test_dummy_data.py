@@ -61,7 +61,7 @@ def send_data(data):
         print(f"HTTP Status Code: {response.status_code}")
         
         if response.status_code == 200:
-            print("✓ SUCCESS! Datos enviados correctamente")
+            print("[OK] SUCCESS! Datos enviados correctamente")
             print(f"Respuesta del servidor:")
             try:
                 response_data = response.json()
@@ -71,13 +71,13 @@ def send_data(data):
             print(f"{'='*60}\n")
             return True
         else:
-            print(f"✗ ERROR: HTTP {response.status_code}")
+            print(f"[ERROR] ERROR: HTTP {response.status_code}")
             print(f"Respuesta: {response.text}")
             print(f"{'='*60}\n")
             return False
             
     except requests.exceptions.ConnectionError:
-        print(f"✗ ERROR: No se pudo conectar al servidor")
+        print(f"[ERROR] ERROR: No se pudo conectar al servidor")
         print(f"Verifica que:")
         print(f"  1. La URL sea correcta: {SERVER_URL}")
         print(f"  2. Vercel este desplegado y activo")
@@ -86,12 +86,12 @@ def send_data(data):
         return False
         
     except requests.exceptions.Timeout:
-        print(f"✗ ERROR: Timeout - El servidor no respondio a tiempo")
+        print(f"[ERROR] ERROR: Timeout - El servidor no respondio a tiempo")
         print(f"{'='*60}\n")
         return False
         
     except Exception as e:
-        print(f"✗ ERROR: {str(e)}")
+        print(f"[ERROR] ERROR: {str(e)}")
         print(f"{'='*60}\n")
         return False
 
@@ -107,13 +107,13 @@ def test_connection():
     try:
         # Intentar conectar al endpoint principal
         response = requests.get(SERVER_URL, timeout=5)
-        print(f"✓ Conexion al servidor: OK (Status: {response.status_code})")
+        print(f"[OK] Conexion al servidor: OK (Status: {response.status_code})")
         return True
     except requests.exceptions.ConnectionError:
-        print(f"✗ No se pudo conectar al servidor")
+        print(f"[ERROR] No se pudo conectar al servidor")
         return False
     except Exception as e:
-        print(f"✗ Error: {str(e)}")
+        print(f"[ERROR] Error: {str(e)}")
         return False
 
 def main():
