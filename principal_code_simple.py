@@ -1,16 +1,26 @@
 from flask import Flask, render_template_string, request, jsonify
 from datetime import datetime
 import os
-import json
+
+# Import Supabase functions
+try:
+    from supabase_config import insert_sensor_data, get_latest_sensor_data, get_supabase_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+    print("Supabase no disponible")
 
 app = Flask(__name__)
 
 # Global variables to store ESP32 data
 esp32_data = {
     'sensor_data': {
-        'humidity': 0,
-        'temperature': 0,
-        'uv_index': 0,
+        'temperature1': 0,
+        'humidity1': 0,
+        'temperature2': 0,
+        'humidity2': 0,
+        'soil_moisture1': 0,
+        'soil_moisture2': 0,
         'last_update': 'N/A'
     },
     'esp32_status': 'disconnected',
@@ -18,14 +28,57 @@ esp32_data = {
     'led_state': 'off'
 }
 
-def save_sensor_data(humidity, temperature, uv_index):
-    """Save sensor data"""
+def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2):
+    """Save sensor data to Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"Sensor data saved: T={temperature}C, H={humidity}%, UV={uv_index}")
+    
+    if SUPABASE_AVAILABLE:
+        try:
+            success = insert_sensor_data(
+                temperature1, humidity1, 
+                temperature2, humidity2,
+                soil_moisture1, soil_moisture2,
+                timestamp
+            )
+            if success:
+                print(f"Datos guardados en Supabase: T1={temperature1}C, H1={humidity1}%, T2={temperature2}C, H2={humidity2}%, SM1={soil_moisture1}%, SM2={soil_moisture2}%")
+            else:
+                print(f"Error guardando en Supabase")
+        except Exception as e:
+            print(f"Error con Supabase: {e}")
+    
+    print(f"Sensor data saved: T1={temperature1}C, H1={humidity1}%, T2={temperature2}C, H2={humidity2}%, SM1={soil_moisture1}%, SM2={soil_moisture2}%")
+
+def load_latest_data_from_supabase():
+    """Load latest sensor data from Supabase"""
+    if SUPABASE_AVAILABLE:
+        try:
+            latest = get_latest_sensor_data()
+            if latest:
+                esp32_data['sensor_data'] = {
+                    'temperature1': latest.get('temperature1', 0),
+                    'humidity1': latest.get('humidity1', 0),
+                    'temperature2': latest.get('temperature2', 0),
+                    'humidity2': latest.get('humidity2', 0),
+                    'soil_moisture1': latest.get('soil_moisture1', 0),
+                    'soil_moisture2': latest.get('soil_moisture2', 0),
+                    'last_update': latest.get('timestamp', 'N/A')
+                }
+                esp32_data['esp32_status'] = 'connected'
+                return True
+        except Exception as e:
+            print(f"Error cargando datos de Supabase: {e}")
+    return False
+
+# Load initial data from Supabase
+load_latest_data_from_supabase()
 
 @app.route('/')
 def home():
     """Main dashboard page"""
+    # Refresh data from Supabase on page load
+    load_latest_data_from_supabase()
+    
     return render_template_string('''
 <!DOCTYPE html>
 <html lang="es">
@@ -51,7 +104,7 @@ def home():
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -131,7 +184,7 @@ def home():
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             padding: 15px;
             background: #f8f9fa;
             border-radius: 12px;
@@ -141,21 +194,22 @@ def home():
         .metric-label {
             font-weight: 500;
             color: #555;
+            font-size: 0.95rem;
         }
 
         .metric-value {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: #333;
         }
 
         .temperature { border-left-color: #dc3545; }
         .humidity { border-left-color: #17a2b8; }
-        .uv { border-left-color: #ffc107; }
+        .soil { border-left-color: #28a745; }
 
         .temperature .metric-value { color: #dc3545; }
         .humidity .metric-value { color: #17a2b8; }
-        .uv .metric-value { color: #ffc107; }
+        .soil .metric-value { color: #28a745; }
 
         .btn {
             background: linear-gradient(135deg, #007bff, #0056b3);
@@ -181,18 +235,6 @@ def home():
             transform: none;
         }
 
-        .btn-danger {
-            background: linear-gradient(135deg, #dc3545, #c82333);
-        }
-
-        .btn-success {
-            background: linear-gradient(135deg, #28a745, #20c997);
-        }
-
-        .btn-warning {
-            background: linear-gradient(135deg, #ffc107, #e0a800);
-        }
-
         .status-indicator {
             display: flex;
             align-items: center;
@@ -212,28 +254,12 @@ def home():
             color: #333;
         }
 
-        .control-section {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
-
-        .control-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-        }
-
-        .footer {
+        .refresh-indicator {
             text-align: center;
             color: white;
-            margin-top: 40px;
+            margin-top: 20px;
+            font-size: 0.9rem;
             opacity: 0.8;
-        }
-
-        .footer-content p {
-            margin: 5px 0;
         }
 
         @media (max-width: 768px) {
@@ -262,46 +288,90 @@ def home():
         <header class="header">
             <h1>Sistema IoT Inteligente</h1>
             <p>Monitoreo y Control en Tiempo Real</p>
+            <p style="font-size: 0.9rem; margin-top: 10px;">Actualizacion automatica cada 5 minutos</p>
         </header>
 
         <!-- Dashboard Grid -->
         <div class="dashboard-grid">
-            <!-- Sensor Data Card -->
+            <!-- DHT11 Sensor 1 Card -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #dc3545, #c82333);">
                         <i class="fas fa-thermometer-half"></i>
                     </div>
                     <div>
-                        <h3 class="card-title">Datos del Sensor</h3>
-                        <p class="card-subtitle">Temperatura, Humedad y UV Index</p>
+                        <h3 class="card-title">DHT11 Sensor 1</h3>
+                        <p class="card-subtitle">GPIO 2 (D2)</p>
                     </div>
                 </div>
                 
                 <div class="metric temperature">
                     <span class="metric-label">Temperatura</span>
-                    <span class="metric-value" id="temperature-value">{{ esp32_data.sensor_data.temperature }}</span>
+                    <span class="metric-value" id="temperature1-value">{{ esp32_data.sensor_data.temperature1 }}</span><span style="font-size: 1rem;">°C</span>
                 </div>
                 
                 <div class="metric humidity">
                     <span class="metric-label">Humedad</span>
-                    <span class="metric-value" id="humidity-value">{{ esp32_data.sensor_data.humidity }}</span>
+                    <span class="metric-value" id="humidity1-value">{{ esp32_data.sensor_data.humidity1 }}</span><span style="font-size: 1rem;">%</span>
                 </div>
-                
-                <div class="metric uv">
-                    <span class="metric-label">UV Index</span>
-                    <span class="metric-value" id="uv-value">{{ esp32_data.sensor_data.uv_index }}</span>
-                </div>
-                
-                <div class="control-section">
-                    <div class="control-buttons">
-                        <button class="btn btn-success" onclick="testSensor()">
-                            <i class="fas fa-play"></i> Test Sensor
-                        </button>
-                        <button class="btn btn-warning" onclick="testAlert()">
-                            <i class="fas fa-exclamation-triangle"></i> Test Alert
-                        </button>
+            </div>
+
+            <!-- DHT11 Sensor 2 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #dc3545, #c82333);">
+                        <i class="fas fa-thermometer-half"></i>
                     </div>
+                    <div>
+                        <h3 class="card-title">DHT11 Sensor 2</h3>
+                        <p class="card-subtitle">GPIO 4 (D4)</p>
+                    </div>
+                </div>
+                
+                <div class="metric temperature">
+                    <span class="metric-label">Temperatura</span>
+                    <span class="metric-value" id="temperature2-value">{{ esp32_data.sensor_data.temperature2 }}</span><span style="font-size: 1rem;">°C</span>
+                </div>
+                
+                <div class="metric humidity">
+                    <span class="metric-label">Humedad</span>
+                    <span class="metric-value" id="humidity2-value">{{ esp32_data.sensor_data.humidity2 }}</span><span style="font-size: 1rem;">%</span>
+                </div>
+            </div>
+
+            <!-- Soil Moisture Sensor 1 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                        <i class="fas fa-seedling"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Humedad de Suelo 1</h3>
+                        <p class="card-subtitle">GPIO 35 (ADC)</p>
+                    </div>
+                </div>
+                
+                <div class="metric soil">
+                    <span class="metric-label">Humedad</span>
+                    <span class="metric-value" id="soil1-value">{{ esp32_data.sensor_data.soil_moisture1 }}</span><span style="font-size: 1rem;">%</span>
+                </div>
+            </div>
+
+            <!-- Soil Moisture Sensor 2 Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                        <i class="fas fa-seedling"></i>
+                    </div>
+                    <div>
+                        <h3 class="card-title">Humedad de Suelo 2</h3>
+                        <p class="card-subtitle">GPIO 36 (ADC)</p>
+                    </div>
+                </div>
+                
+                <div class="metric soil">
+                    <span class="metric-label">Humedad</span>
+                    <span class="metric-value" id="soil2-value">{{ esp32_data.sensor_data.soil_moisture2 }}</span><span style="font-size: 1rem;">%</span>
                 </div>
             </div>
 
@@ -326,49 +396,16 @@ def home():
                     <span class="metric-label">Ultima Actualizacion</span>
                     <div class="metric-value" id="last-update" style="font-size: 1rem;">{{ esp32_data.sensor_data.last_update }}</div>
                 </div>
-                
-                <div class="metric">
-                    <span class="metric-label">Proxima Lectura</span>
-                    <div class="metric-value" id="next-reading" style="font-size: 1.25rem;">1 hora</div>
-                </div>
             </div>
-
-            <!-- LED Control Card -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #ffc107, #e0a800);">
-                        <i class="fas fa-lightbulb"></i>
-                    </div>
-                    <div>
-                        <h3 class="card-title">Control LED</h3>
-                        <p class="card-subtitle">Control del LED del ESP32</p>
-                    </div>
-                </div>
-                
-                <div class="metric">
-                    <span class="metric-label">Estado LED</span>
-                    <div class="metric-value" id="led-status-display" style="font-size: 1.2rem;">{{ esp32_data.led_status }}</div>
-                </div>
-                
-                <div class="control-section">
-                    <div class="control-buttons">
-                        <button class="btn btn-success" onclick="controlLED('on')">
-                            <i class="fas fa-power-off"></i> Encender
-                        </button>
-                        <button class="btn btn-danger" onclick="controlLED('off')">
-                            <i class="fas fa-power-off"></i> Apagar
-                        </button>
-                        <button class="btn btn-warning" onclick="controlLED('blink')">
-                            <i class="fas fa-blink"></i> Parpadear
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
+        </div>
+        
+        <!-- Refresh Indicator -->
+        <div class="refresh-indicator">
+            <p>Proxima actualizacion automatica en: <span id="countdown">5:00</span></p>
         </div>
         
         <!-- Footer -->
-        <footer class="footer">
+        <footer class="footer" style="text-align: center; color: white; margin-top: 40px; opacity: 0.8;">
             <div class="footer-content">
                 <p>&copy; 2024 Sistema IoT Inteligente - Monitoreo y Control en Tiempo Real</p>
                 <p>Desarrollado para Instrumentacion y Medicion</p>
@@ -376,135 +413,47 @@ def home():
         </footer>
 
         <script>
-            // Test alert function
-            function testAlert() {
-                const btn = event.target;
-                btn.disabled = true;
-                btn.textContent = 'Sending...';
-
-                fetch('/test-alert', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        alert('Alerta de prueba enviada! Temperatura: 38.5C');
-                        setTimeout(() => location.reload(), 1000);
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error);
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = 'Test Alert';
-                });
-            }
-
-            // LED Control Functions
-            function controlLED(action) {
-                const buttons = document.querySelectorAll('.btn');
-                buttons.forEach(btn => btn.disabled = true);
-                
-                fetch('/led-control', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ action: action })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        updateLEDStatus(data.led_status, data.led_state);
-                        console.log('LED Control:', data.message);
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error);
-                })
-                .finally(() => {
-                    buttons.forEach(btn => btn.disabled = false);
-                });
-            }
+            let countdownSeconds = 300; // 5 minutes in seconds
             
-            // Sensor Test Function
-            function testSensor() {
-                const button = event.target;
-                button.disabled = true;
-                button.textContent = 'Requesting...';
+            function updateCountdown() {
+                const minutes = Math.floor(countdownSeconds / 60);
+                const seconds = countdownSeconds % 60;
+                document.getElementById('countdown').textContent = 
+                    `${minutes}:${seconds.toString().padStart(2, '0')}`;
                 
-                fetch('/test-sensor', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        console.log('Sensor Test:', data.message);
-                        alert('Sensor test request sent! Check the indicators for new data.');
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error);
-                })
-                .finally(() => {
-                    button.disabled = false;
-                    button.textContent = 'Test Sensor';
-                });
-            }
-
-            function updateLEDStatus(status, state) {
-                const statusDisplay = document.getElementById('led-status-display');
-                
-                statusDisplay.textContent = status;
-                
-                // Update colors based on status
-                if (status === 'ON') {
-                    statusDisplay.style.color = '#28a745';
-                } else if (status === 'BLINKING') {
-                    statusDisplay.style.color = '#ffc107';
+                if (countdownSeconds > 0) {
+                    countdownSeconds--;
                 } else {
-                    statusDisplay.style.color = '#6c757d';
+                    countdownSeconds = 300; // Reset to 5 minutes
+                    refreshData();
                 }
             }
-
-            function loadLEDStatus() {
-                fetch('/led-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        updateLEDStatus(data.led_status, data.led_state);
-                    }
-                })
-                .catch(error => {
-                    console.log('Error loading LED status:', error);
-                });
+            
+            function refreshData() {
+                console.log('Refrescando datos desde Supabase...');
+                fetch('/latest-data')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            updateSensorData(data.sensor_data);
+                            updateConnectionStatus(data);
+                        }
+                    })
+                    .catch(error => {
+                        console.log('Error refrescando datos:', error);
+                    });
             }
-
-            function checkConnectionStatus() {
-                fetch('/data')
-                .then(response => response.json())
-                .then(data => {
-                    updateConnectionStatus(data);
-                })
-                .catch(error => {
-                    console.log('Error checking connection:', error);
-                });
+            
+            function updateSensorData(sensorData) {
+                document.getElementById('temperature1-value').textContent = sensorData.temperature1.toFixed(1);
+                document.getElementById('humidity1-value').textContent = sensorData.humidity1.toFixed(1);
+                document.getElementById('temperature2-value').textContent = sensorData.temperature2.toFixed(1);
+                document.getElementById('humidity2-value').textContent = sensorData.humidity2.toFixed(1);
+                document.getElementById('soil1-value').textContent = sensorData.soil_moisture1.toFixed(1);
+                document.getElementById('soil2-value').textContent = sensorData.soil_moisture2.toFixed(1);
+                document.getElementById('last-update').textContent = sensorData.last_update;
             }
-
+            
             function updateConnectionStatus(data) {
                 const statusElement = document.getElementById('connection-status');
                 const statusDot = document.querySelector('.status-dot');
@@ -520,16 +469,11 @@ def home():
 
             // Initialize on page load
             document.addEventListener('DOMContentLoaded', function() {
-                // Load LED status
-                loadLEDStatus();
+                // Start countdown timer
+                setInterval(updateCountdown, 1000);
                 
-                // Check connection status periodically
-                setInterval(checkConnectionStatus, 5000); // Every 5 seconds
-                
-                // Auto-refresh every hour
-                setInterval(() => {
-                    location.reload();
-                }, 3600000);
+                // Initial data refresh
+                refreshData();
             });
         </script>
     </body>
@@ -542,22 +486,38 @@ def receive_sensor_data():
     try:
         if request.method == 'POST':
             data = request.get_json() or {}
-            humidity = data.get('humidity')
-            temperature = data.get('temperature')
-            uv_index = data.get('uv_index', 0)
+            temperature1 = data.get('temperature1')
+            humidity1 = data.get('humidity1')
+            temperature2 = data.get('temperature2')
+            humidity2 = data.get('humidity2')
+            soil_moisture1 = data.get('soil_moisture1')
+            soil_moisture2 = data.get('soil_moisture2')
 
-            if humidity is None or temperature is None:
+            if temperature1 is None or humidity1 is None:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Missing sensor data. Required: humidity, temperature'
+                    'message': 'Missing sensor data. Required: temperature1, humidity1'
                 }), 400
 
-            save_sensor_data(humidity, temperature, uv_index)
+            # Use defaults if sensor 2 or soil sensors are not provided
+            if temperature2 is None:
+                temperature2 = 0.0
+            if humidity2 is None:
+                humidity2 = 0.0
+            if soil_moisture1 is None:
+                soil_moisture1 = 0.0
+            if soil_moisture2 is None:
+                soil_moisture2 = 0.0
+
+            save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2)
 
             esp32_data['sensor_data'] = {
-                'humidity': humidity,
-                'temperature': temperature,
-                'uv_index': uv_index,
+                'temperature1': temperature1,
+                'humidity1': humidity1,
+                'temperature2': temperature2,
+                'humidity2': humidity2,
+                'soil_moisture1': soil_moisture1,
+                'soil_moisture2': soil_moisture2,
                 'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             esp32_data['esp32_status'] = 'connected'
@@ -566,11 +526,7 @@ def receive_sensor_data():
                 'status': 'success',
                 'message': 'Sensor data received and saved',
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'data': {
-                    'humidity': humidity,
-                    'temperature': temperature,
-                    'uv_index': uv_index
-                }
+                'data': esp32_data['sensor_data']
             }
             return jsonify(response)
         else:
@@ -579,89 +535,15 @@ def receive_sensor_data():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/test-sensor', methods=['POST'])
-def test_sensor():
-    """Test sensor endpoint"""
+@app.route('/latest-data')
+def latest_data():
+    """Get latest sensor data from Supabase"""
     try:
-        data = request.get_json() or {}
-        
-        # Simulate sensor test
-        test_data = {
-            'humidity': 45.2,
-            'temperature': 23.8,
-            'uv_index': 3.5
-        }
-        
-        save_sensor_data(test_data['humidity'], test_data['temperature'], test_data['uv_index'])
-        
-        esp32_data['sensor_data'] = {
-            'humidity': test_data['humidity'],
-            'temperature': test_data['temperature'],
-            'uv_index': test_data['uv_index'],
-            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        esp32_data['esp32_status'] = 'connected'
-        
+        load_latest_data_from_supabase()
         return jsonify({
             'status': 'success',
-            'message': 'Sensor test completed successfully',
-            'data': test_data
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/test-alert', methods=['POST'])
-def test_alert():
-    """Test alert endpoint"""
-    try:
-        # Simulate high temperature alert
-        test_data = {
-            'humidity': 30.0,
-            'temperature': 38.5,
-            'uv_index': 8.2
-        }
-        
-        save_sensor_data(test_data['humidity'], test_data['temperature'], test_data['uv_index'])
-        
-        esp32_data['sensor_data'] = {
-            'humidity': test_data['humidity'],
-            'temperature': test_data['temperature'],
-            'uv_index': test_data['uv_index'],
-            'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        esp32_data['esp32_status'] = 'connected'
-        
-        return jsonify({
-            'status': 'success',
-            'message': 'Alert test completed - High temperature simulated',
-            'data': test_data
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/led-control', methods=['POST'])
-def led_control():
-    """Control LED on ESP32"""
-    try:
-        data = request.get_json() or {}
-        action = data.get('action', 'off')
-        
-        # Simulate LED control
-        if action == 'on':
-            esp32_data['led_status'] = 'ON'
-            esp32_data['led_state'] = 'on'
-        elif action == 'off':
-            esp32_data['led_status'] = 'OFF'
-            esp32_data['led_state'] = 'off'
-        elif action == 'blink':
-            esp32_data['led_status'] = 'BLINKING'
-            esp32_data['led_state'] = 'blink'
-        
-        return jsonify({
-            'status': 'success',
-            'message': f'LED {action} command sent',
-            'led_status': esp32_data['led_status'],
-            'led_state': esp32_data['led_state']
+            'sensor_data': esp32_data['sensor_data'],
+            'esp32_status': esp32_data['esp32_status']
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

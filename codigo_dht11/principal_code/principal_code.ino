@@ -9,18 +9,22 @@ const char* password = "mKyUQGz295";
 
 // Server configuration
 const char* serverURL = "https://intrumentacion.vercel.app";  // URL de Vercel
-const int LED_PIN = 13;  // LED interno del ESP32 (cambiamos para evitar conflicto con DHT11)
+const int LED_PIN = 13;  // LED interno del ESP32
 
-// DHT11 sensor configuration
-#define DHT_PIN 2        // GPIO 2 (Pin 2) - Connect DHT11 data pin here (ESP32 DevKit v1)
-#define DHT_TYPE DHT11   // DHT sensor type
-DHT dht(DHT_PIN, DHT_TYPE);
+// DHT11 sensor configuration - Sensor 1
+#define DHT_PIN_1 2        // GPIO 2 (D2) - First DHT11 sensor
+#define DHT_TYPE DHT11     // DHT sensor type
+DHT dht1(DHT_PIN_1, DHT_TYPE);
 
-// UV Sensor configuration (GUVA-S12SD)
-#define UV_PIN 34        // GPIO 34 (ADC1_CH6) - Connect UV sensor analog output here
-#define UV_RESOLUTION 12 // ADC resolution (12-bit = 4096 levels)
-#define UV_VREF 3.3     // Reference voltage (3.3V)
-#define UV_SENSITIVITY 0.1 // Sensitivity in V per UV index unit
+// DHT11 sensor configuration - Sensor 2
+#define DHT_PIN_2 4        // GPIO 4 (D4) - Second DHT11 sensor
+DHT dht2(DHT_PIN_2, DHT_TYPE);
+
+// Soil moisture sensor configuration
+#define SOIL_MOISTURE_PIN_1 35  // GPIO 35 (ADC1_CH7) - First soil moisture sensor
+#define SOIL_MOISTURE_PIN_2 36  // GPIO 36 (ADC1_CH0) - Second soil moisture sensor
+#define ADC_RESOLUTION 12       // ADC resolution (12-bit = 4096 levels)
+#define ADC_VREF 3.3            // Reference voltage (3.3V)
 
 // Timing configuration
 unsigned long lastConnectionAttempt = 0;
@@ -28,16 +32,23 @@ unsigned long lastSensorReading = 0;
 unsigned long lastDataSend = 0;
 const unsigned long connectionInterval = 30000;  // 30 segundos
 const unsigned long sensorInterval = 60000;      // 1 minuto
-const unsigned long dataSendInterval = 900000;   // 15 minutos
+const unsigned long dataSendInterval = 300000;   // 5 minutos (300000 ms)
 
 // Connection status
 bool serverConnected = false;
 int connectionAttempts = 0;
 
-// Sensor data variables
-float humidity = 0.0;
-float temperature = 0.0;
-float uvIndex = 0.0;
+// Sensor data variables - DHT11 Sensor 1
+float temperature1 = 0.0;
+float humidity1 = 0.0;
+
+// Sensor data variables - DHT11 Sensor 2
+float temperature2 = 0.0;
+float humidity2 = 0.0;
+
+// Sensor data variables - Soil Moisture Sensors
+float soilMoisture1 = 0.0;  // Percentage (0-100%)
+float soilMoisture2 = 0.0;  // Percentage (0-100%)
 
 // LED control variables
 bool ledState = false;
@@ -49,34 +60,36 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  Serial.println("🌱 ESP32 DHT11 Monitor Starting...");
+  Serial.println("ESP32 Multi-Sensor Monitor Starting...");
   
   // Initialize LED
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);  // LED off initially
   
-  // Initialize DHT11 sensor
-  dht.begin();
-  Serial.println("✅ DHT11 sensor initialized on GPIO 2");
+  // Initialize DHT11 sensors
+  dht1.begin();
+  Serial.println("DHT11 sensor 1 initialized on GPIO 2");
   
-  // Initialize UV sensor ADC
-  analogReadResolution(UV_RESOLUTION);
-  Serial.println("✅ UV sensor initialized on GPIO 34 (ADC)");
+  dht2.begin();
+  Serial.println("DHT11 sensor 2 initialized on GPIO 4");
+  
+  // Initialize ADC for soil moisture sensors
+  analogReadResolution(ADC_RESOLUTION);
+  Serial.println("Soil moisture sensors initialized on GPIO 35 and GPIO 36");
   
   // Test sensors on startup
-  Serial.println("🧪 Testing sensors...");
+  Serial.println("Testing sensors...");
   delay(2000);  // Wait for sensors to stabilize
-  readDHT11Sensor();
-  readUVSensor();
+  readAllSensors();
   
   // Connect to WiFi
   connectToWiFi();
   
-  Serial.println("🚀 ESP32 Multi-Sensor Monitor Ready!");
-  Serial.println("📡 Will send data every 15 minutes");
-  Serial.println("💡 LED control enabled - checking commands every 10 seconds");
-  Serial.println("🌡️ Sensors: DHT11 (Temperature/Humidity) + UV (GUVA-S12SD)");
-  Serial.println("────────────────────────────────");
+  Serial.println("ESP32 Multi-Sensor Monitor Ready!");
+  Serial.println("Will send data every 5 minutes");
+  Serial.println("LED control enabled - checking commands every 10 seconds");
+  Serial.println("Sensors: 2x DHT11 (Temperature/Humidity) + 2x Soil Moisture");
+  Serial.println("--------------------------------");
 }
 
 void loop() {
@@ -85,7 +98,7 @@ void loop() {
   // Check WiFi connection
   if (WiFi.status() != WL_CONNECTED) {
     if (currentTime - lastConnectionAttempt > connectionInterval) {
-      Serial.println("❌ WiFi disconnected. Attempting reconnection...");
+      Serial.println("WiFi disconnected. Attempting reconnection...");
       connectToWiFi();
       lastConnectionAttempt = currentTime;
     }
@@ -94,12 +107,11 @@ void loop() {
   
   // Read sensors every minute
   if (currentTime - lastSensorReading > sensorInterval) {
-    readDHT11Sensor();
-    readUVSensor();
+    readAllSensors();
     lastSensorReading = currentTime;
   }
   
-  // Send data to server every 30 minutes
+  // Send data to server every 5 minutes
   if (currentTime - lastDataSend > dataSendInterval) {
     sendSensorData();
     lastDataSend = currentTime;
@@ -119,7 +131,7 @@ void loop() {
 }
 
 void connectToWiFi() {
-  Serial.print("📶 Connecting to WiFi: ");
+  Serial.print("Connecting to WiFi: ");
   Serial.println(ssid);
   
   WiFi.begin(ssid, password);
@@ -136,10 +148,10 @@ void connectToWiFi() {
   
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println();
-    Serial.println("✅ WiFi connected successfully!");
-    Serial.print("🌐 IP address: ");
+    Serial.println("WiFi connected successfully!");
+    Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    Serial.print("📡 Server URL: ");
+    Serial.print("Server URL: ");
     Serial.println(serverURL);
     
     // LED blinks 3 times for successful connection
@@ -153,46 +165,52 @@ void connectToWiFi() {
     serverConnected = true;
   } else {
     Serial.println();
-    Serial.println("❌ WiFi connection failed!");
+    Serial.println("WiFi connection failed!");
     digitalWrite(LED_PIN, HIGH);  // LED off on failure
     serverConnected = false;
   }
 }
 
-void readDHT11Sensor() {
-  Serial.println("🌡️ Starting DHT11 sensor reading...");
-  Serial.println("📍 Pin: GPIO 2 (D2)");
+void readAllSensors() {
+  readDHT11Sensor1();
+  readDHT11Sensor2();
+  readSoilMoistureSensor1();
+  readSoilMoistureSensor2();
+}
+
+void readDHT11Sensor1() {
+  Serial.println("Starting DHT11 sensor 1 reading...");
+  Serial.println("Pin: GPIO 2 (D2)");
   
   // Read temperature and humidity
-  float newTemperature = dht.readTemperature();
-  float newHumidity = dht.readHumidity();
+  float newTemperature = dht1.readTemperature();
+  float newHumidity = dht1.readHumidity();
   
-  Serial.printf("🔍 Raw readings - T: %.2f°C, H: %.2f%%\n", newTemperature, newHumidity);
+  Serial.printf("Raw readings - T: %.2fC, H: %.2f%%\n", newTemperature, newHumidity);
   
   // Check if readings are valid
   if (isnan(newTemperature) || isnan(newHumidity)) {
-    Serial.println("❌ FAILED to read from DHT11 sensor!");
-    Serial.println("🔧 Troubleshooting steps:");
+    Serial.println("FAILED to read from DHT11 sensor 1!");
+    Serial.println("Troubleshooting steps:");
     Serial.println("   1. Check DHT11 connections:");
-    Serial.println("      - VCC → 3.3V or 5V");
-    Serial.println("      - GND → GND");
-    Serial.println("      - Data → GPIO 2 (D2)");
+    Serial.println("      - VCC -> 3.3V or 5V");
+    Serial.println("      - GND -> GND");
+    Serial.println("      - Data -> GPIO 2 (D2)");
     Serial.println("   2. Verify DHT11 is working");
     Serial.println("   3. Check power supply stability");
-    Serial.println("   4. Try different DHT11 sensor");
-    Serial.println("────────────────────────────────");
+    Serial.println("--------------------------------");
     return;
   }
   
   // Update global variables
-  temperature = newTemperature;
-  humidity = newHumidity;
+  temperature1 = newTemperature;
+  humidity1 = newHumidity;
   
-  Serial.println("✅ DHT11 Reading SUCCESS:");
-  Serial.printf("  🌡️ Temperature: %.1f°C\n", temperature);
-  Serial.printf("  💧 Humidity: %.1f%%\n", humidity);
-  Serial.println("📤 Data ready for transmission");
-  Serial.println("────────────────────────────────");
+  Serial.println("DHT11 Sensor 1 Reading SUCCESS:");
+  Serial.printf("  Temperature: %.1fC\n", temperature1);
+  Serial.printf("  Humidity: %.1f%%\n", humidity1);
+  Serial.println("Data ready for transmission");
+  Serial.println("--------------------------------");
   
   // LED blinks once for successful reading
   digitalWrite(LED_PIN, LOW);
@@ -200,48 +218,118 @@ void readDHT11Sensor() {
   digitalWrite(LED_PIN, HIGH);
 }
 
-void readUVSensor() {
-  Serial.println("☀️ Starting UV sensor reading...");
-  Serial.println("📍 Pin: GPIO 34 (ADC)");
+void readDHT11Sensor2() {
+  Serial.println("Starting DHT11 sensor 2 reading...");
+  Serial.println("Pin: GPIO 4 (D4)");
   
-  // Read analog value from UV sensor
-  int rawValue = analogRead(UV_PIN);
+  // Read temperature and humidity
+  float newTemperature = dht2.readTemperature();
+  float newHumidity = dht2.readHumidity();
+  
+  Serial.printf("Raw readings - T: %.2fC, H: %.2f%%\n", newTemperature, newHumidity);
+  
+  // Check if readings are valid
+  if (isnan(newTemperature) || isnan(newHumidity)) {
+    Serial.println("FAILED to read from DHT11 sensor 2!");
+    Serial.println("Troubleshooting steps:");
+    Serial.println("   1. Check DHT11 connections:");
+    Serial.println("      - VCC -> 3.3V or 5V");
+    Serial.println("      - GND -> GND");
+    Serial.println("      - Data -> GPIO 4 (D4)");
+    Serial.println("   2. Verify DHT11 is working");
+    Serial.println("   3. Check power supply stability");
+    Serial.println("--------------------------------");
+    return;
+  }
+  
+  // Update global variables
+  temperature2 = newTemperature;
+  humidity2 = newHumidity;
+  
+  Serial.println("DHT11 Sensor 2 Reading SUCCESS:");
+  Serial.printf("  Temperature: %.1fC\n", temperature2);
+  Serial.printf("  Humidity: %.1f%%\n", humidity2);
+  Serial.println("Data ready for transmission");
+  Serial.println("--------------------------------");
+}
+
+void readSoilMoistureSensor1() {
+  Serial.println("Starting soil moisture sensor 1 reading...");
+  Serial.println("Pin: GPIO 35 (ADC)");
+  
+  // Read analog value from soil moisture sensor
+  int rawValue = analogRead(SOIL_MOISTURE_PIN_1);
   
   // Convert to voltage
-  float voltage = (rawValue * UV_VREF) / (1 << UV_RESOLUTION);
+  float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
   
-  // Convert voltage to UV index
-  // GUVA-S12SD: approximately 0.1V per UV index unit
-  float newUVIndex = voltage / UV_SENSITIVITY;
+  // Convert voltage to percentage (0-100%)
+  // Typical soil moisture sensors: 0V (dry) = 0%, 3.3V (wet) = 100%
+  // Adjust calibration based on your sensor
+  float newMoisture = (voltage / ADC_VREF) * 100.0;
   
-  // Clamp UV index to reasonable range (0-15)
-  if (newUVIndex < 0) newUVIndex = 0;
-  if (newUVIndex > 15) newUVIndex = 15;
+  // Clamp to 0-100%
+  if (newMoisture < 0) newMoisture = 0;
+  if (newMoisture > 100) newMoisture = 100;
   
-  Serial.printf("🔍 Raw readings - ADC: %d, Voltage: %.3fV, UV Index: %.1f\n", 
-                rawValue, voltage, newUVIndex);
+  Serial.printf("Raw readings - ADC: %d, Voltage: %.3fV, Moisture: %.1f%%\n", 
+                rawValue, voltage, newMoisture);
   
   // Update global variable
-  uvIndex = newUVIndex;
+  soilMoisture1 = newMoisture;
   
-  Serial.println("✅ UV Sensor Reading SUCCESS:");
-  Serial.printf("  ☀️ UV Index: %.1f\n", uvIndex);
-  Serial.printf("  📊 Voltage: %.3fV\n", voltage);
-  Serial.printf("  🔢 Raw ADC: %d\n", rawValue);
-  Serial.println("📤 UV data ready for transmission");
-  Serial.println("────────────────────────────────");
+  Serial.println("Soil Moisture Sensor 1 Reading SUCCESS:");
+  Serial.printf("  Moisture: %.1f%%\n", soilMoisture1);
+  Serial.printf("  Voltage: %.3fV\n", voltage);
+  Serial.printf("  Raw ADC: %d\n", rawValue);
+  Serial.println("Data ready for transmission");
+  Serial.println("--------------------------------");
+}
+
+void readSoilMoistureSensor2() {
+  Serial.println("Starting soil moisture sensor 2 reading...");
+  Serial.println("Pin: GPIO 36 (ADC)");
+  
+  // Read analog value from soil moisture sensor
+  int rawValue = analogRead(SOIL_MOISTURE_PIN_2);
+  
+  // Convert to voltage
+  float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
+  
+  // Convert voltage to percentage (0-100%)
+  // Typical soil moisture sensors: 0V (dry) = 0%, 3.3V (wet) = 100%
+  // Adjust calibration based on your sensor
+  float newMoisture = (voltage / ADC_VREF) * 100.0;
+  
+  // Clamp to 0-100%
+  if (newMoisture < 0) newMoisture = 0;
+  if (newMoisture > 100) newMoisture = 100;
+  
+  Serial.printf("Raw readings - ADC: %d, Voltage: %.3fV, Moisture: %.1f%%\n", 
+                rawValue, voltage, newMoisture);
+  
+  // Update global variable
+  soilMoisture2 = newMoisture;
+  
+  Serial.println("Soil Moisture Sensor 2 Reading SUCCESS:");
+  Serial.printf("  Moisture: %.1f%%\n", soilMoisture2);
+  Serial.printf("  Voltage: %.3fV\n", voltage);
+  Serial.printf("  Raw ADC: %d\n", rawValue);
+  Serial.println("Data ready for transmission");
+  Serial.println("--------------------------------");
 }
 
 void sendSensorData() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("❌ No WiFi connection. Cannot send data.");
+    Serial.println("No WiFi connection. Cannot send data.");
     return;
   }
   
-  Serial.println("⬆️ Sending sensor data to server...");
-  Serial.printf("  Temperature: %.1f°C\n", temperature);
-  Serial.printf("  Humidity: %.1f%%\n", humidity);
-  Serial.printf("  UV Index: %.1f\n", uvIndex);
+  Serial.println("Sending sensor data to server...");
+  Serial.printf("  DHT11-1 - Temperature: %.1fC, Humidity: %.1f%%\n", temperature1, humidity1);
+  Serial.printf("  DHT11-2 - Temperature: %.1fC, Humidity: %.1f%%\n", temperature2, humidity2);
+  Serial.printf("  Soil Moisture 1: %.1f%%\n", soilMoisture1);
+  Serial.printf("  Soil Moisture 2: %.1f%%\n", soilMoisture2);
   
   HTTPClient http;
   String url = String(serverURL) + "/data";
@@ -250,22 +338,25 @@ void sendSensorData() {
   http.setTimeout(10000);
   
   // Create JSON with sensor data
-  DynamicJsonDocument doc(256);
-  doc["temperature"] = temperature;
-  doc["humidity"] = humidity;
-  doc["uv_index"] = uvIndex;
+  DynamicJsonDocument doc(512);
+  doc["temperature1"] = temperature1;
+  doc["humidity1"] = humidity1;
+  doc["temperature2"] = temperature2;
+  doc["humidity2"] = humidity2;
+  doc["soil_moisture1"] = soilMoisture1;
+  doc["soil_moisture2"] = soilMoisture2;
   
   String jsonString;
   serializeJson(doc, jsonString);
   
-  Serial.println("📤 Sending JSON: " + jsonString);
+  Serial.println("Sending JSON: " + jsonString);
   
   int httpCode = http.POST(jsonString);
   
   if (httpCode == 200) {
     String response = http.getString();
-    Serial.println("✅ DHT11 data sent successfully!");
-    Serial.print("📥 Server response: ");
+    Serial.println("Sensor data sent successfully!");
+    Serial.print("Server response: ");
     Serial.println(response);
     
     // LED blinks twice for successful send
@@ -279,14 +370,14 @@ void sendSensorData() {
     serverConnected = true;
     
   } else if (httpCode > 0) {
-    Serial.printf("⚠️ HTTP error: %d\n", httpCode);
+    Serial.printf("HTTP error: %d\n", httpCode);
     String response = http.getString();
     Serial.println("Response: " + response);
     digitalWrite(LED_PIN, HIGH);  // LED off on error
     serverConnected = false;
     
   } else {
-    Serial.println("❌ Connection failed to server");
+    Serial.println("Connection failed to server");
     digitalWrite(LED_PIN, HIGH);  // LED off on error
     serverConnected = false;
   }
@@ -295,41 +386,41 @@ void sendSensorData() {
   
   // Print connection status
   if (serverConnected) {
-    Serial.println("🟢 Server connection: OK");
+    Serial.println("Server connection: OK");
   } else {
-    Serial.println("🔴 Server connection: FAILED");
+    Serial.println("Server connection: FAILED");
   }
   
-  Serial.println("⏰ Next data send in 30 minutes");
-  Serial.println("────────────────────────────────");
+  Serial.println("Next data send in 5 minutes");
+  Serial.println("--------------------------------");
 }
 
 // LED Control Functions
 void controlLED(String action) {
-  Serial.println("💡 LED Control: " + action);
+  Serial.println("LED Control: " + action);
   
   if (action == "on") {
     ledState = true;
     ledBlinking = false;
     digitalWrite(LED_PIN, LOW);  // LED on
-    Serial.println("✅ LED turned ON");
+    Serial.println("LED turned ON");
     
   } else if (action == "off") {
     ledState = false;
     ledBlinking = false;
     digitalWrite(LED_PIN, HIGH);  // LED off
-    Serial.println("🔴 LED turned OFF");
+    Serial.println("LED turned OFF");
     
   } else if (action == "blink") {
     ledState = true;
     ledBlinking = true;
-    Serial.println("⚡ LED set to BLINKING mode");
+    Serial.println("LED set to BLINKING mode");
     
   } else if (action == "toggle") {
     ledState = !ledState;
     ledBlinking = false;
     digitalWrite(LED_PIN, ledState ? LOW : HIGH);
-    Serial.println(ledState ? "✅ LED toggled ON" : "🔴 LED toggled OFF");
+    Serial.println(ledState ? "LED toggled ON" : "LED toggled OFF");
   }
 }
 
@@ -357,7 +448,7 @@ void checkServerCommands() {
   
   if (httpCode == 200) {
     String response = http.getString();
-    Serial.println("📥 Checking server commands...");
+    Serial.println("Checking server commands...");
     
     // Parse JSON response to check for LED commands
     DynamicJsonDocument doc(256);
@@ -365,13 +456,13 @@ void checkServerCommands() {
     
     if (doc.containsKey("led_command")) {
       String command = doc["led_command"];
-      Serial.println("🎯 Received LED command: " + command);
+      Serial.println("Received LED command: " + command);
       controlLED(command);
     }
     
     if (doc.containsKey("sensor_request")) {
-      Serial.println("🌡️ Received sensor test request - reading sensors now!");
-      readDHT11Sensor();
+      Serial.println("Received sensor test request - reading sensors now!");
+      readAllSensors();
       sendSensorData();
     }
   }

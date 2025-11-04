@@ -22,16 +22,18 @@ try:
         """Retorna el cliente de Supabase"""
         return supabase
     
-    def insert_sensor_data(temperature, humidity, timestamp, uv_index=None):
+    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, timestamp):
         """Inserta datos del sensor en Supabase"""
         try:
             data = {
-                'temperature': temperature,
-                'humidity': humidity,
+                'temperature1': temperature1,
+                'humidity1': humidity1,
+                'temperature2': temperature2,
+                'humidity2': humidity2,
+                'soil_moisture1': soil_moisture1,
+                'soil_moisture2': soil_moisture2,
                 'timestamp': timestamp
             }
-            if uv_index is not None:
-                data['uv_index'] = uv_index
             result = supabase.table('sensor_data').insert(data).execute()
             print(f"Datos insertados en Supabase: {data}")
             return True
@@ -48,49 +50,16 @@ try:
             print(f"Error obteniendo datos de Supabase: {e}")
             return []
     
-    def get_chart_data(limit=50):
-        """Obtiene datos para el grafico desde Supabase"""
+    def get_latest_sensor_data():
+        """Obtiene los datos mas recientes del sensor desde Supabase"""
         try:
-            result = supabase.table('sensor_data').select('*').order('timestamp', desc=True).limit(limit).execute()
-            data = result.data
-            
-            if not data:
-                return {
-                    'status': 'success',
-                    'labels': [],
-                    'temperature': [],
-                    'humidity': [],
-                    'uv_index': []
-                }
-            
-            # Procesar datos para el grafico
-            labels = []
-            temperature = []
-            humidity = []
-            uv_index = []
-            
-            for item in reversed(data):  # Invertir para orden cronologico
-                labels.append(item['timestamp'])
-                temperature.append(item['temperature'])
-                humidity.append(item['humidity'])
-                uv_index.append(item.get('uv_index', 0))  # Default to 0 if not present
-            
-            return {
-                'status': 'success',
-                'labels': labels,
-                'temperature': temperature,
-                'humidity': humidity,
-                'uv_index': uv_index
-            }
+            result = supabase.table('sensor_data').select('*').order('timestamp', desc=True).limit(1).execute()
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+            return None
         except Exception as e:
-            print(f"Error obteniendo datos del grafico de Supabase: {e}")
-            return {
-                'status': 'error',
-                'labels': [],
-                'temperature': [],
-                'humidity': [],
-                'uv_index': []
-            }
+            print(f"Error obteniendo ultimos datos de Supabase: {e}")
+            return None
     
     print("Supabase configurado correctamente")
     
@@ -101,8 +70,11 @@ except ImportError:
     def get_supabase_client():
         return None
     
-    def insert_sensor_data(temperature, humidity, timestamp):
+    def insert_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, timestamp):
         return False
+    
+    def get_latest_sensor_data():
+        return None
     
     def get_sensor_data(limit=50):
         return []
