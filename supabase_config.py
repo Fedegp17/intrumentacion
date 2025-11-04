@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno
 load_dotenv()
-load_dotenv('supabase.env')
+try:
+    load_dotenv('supabase.env')
+except Exception:
+    pass  # Ignore if supabase.env doesn't exist
 
 try:
     from supabase import create_client, Client
@@ -63,8 +66,8 @@ try:
     
     print("Supabase configurado correctamente")
     
-except ImportError:
-    print("Supabase no disponible, usando solo CSV")
+except (ImportError, ValueError, Exception) as e:
+    print(f"Supabase no disponible: {e}")
     supabase = None
     
     def get_supabase_client():

@@ -3,12 +3,17 @@ from datetime import datetime
 import os
 
 # Import Supabase functions
+SUPABASE_AVAILABLE = False
+insert_sensor_data = None
+get_latest_sensor_data = None
+get_supabase_client = None
+
 try:
     from supabase_config import insert_sensor_data, get_latest_sensor_data, get_supabase_client
     SUPABASE_AVAILABLE = True
-except ImportError:
+except Exception as e:
     SUPABASE_AVAILABLE = False
-    print("Supabase no disponible")
+    print(f"Supabase no disponible: {e}")
 
 app = Flask(__name__)
 
@@ -32,12 +37,12 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
     """Save sensor data to Supabase"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    if SUPABASE_AVAILABLE:
+    if SUPABASE_AVAILABLE and insert_sensor_data:
         try:
             success = insert_sensor_data(
-                temperature1, humidity1, 
-                temperature2, humidity2,
-                soil_moisture1, soil_moisture2,
+                float(temperature1), float(humidity1), 
+                float(temperature2), float(humidity2),
+                float(soil_moisture1), float(soil_moisture2),
                 timestamp
             )
             if success:
@@ -51,17 +56,17 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
 
 def load_latest_data_from_supabase():
     """Load latest sensor data from Supabase"""
-    if SUPABASE_AVAILABLE:
+    if SUPABASE_AVAILABLE and get_latest_sensor_data:
         try:
             latest = get_latest_sensor_data()
             if latest:
                 esp32_data['sensor_data'] = {
-                    'temperature1': latest.get('temperature1', 0),
-                    'humidity1': latest.get('humidity1', 0),
-                    'temperature2': latest.get('temperature2', 0),
-                    'humidity2': latest.get('humidity2', 0),
-                    'soil_moisture1': latest.get('soil_moisture1', 0),
-                    'soil_moisture2': latest.get('soil_moisture2', 0),
+                    'temperature1': float(latest.get('temperature1', 0) or 0),
+                    'humidity1': float(latest.get('humidity1', 0) or 0),
+                    'temperature2': float(latest.get('temperature2', 0) or 0),
+                    'humidity2': float(latest.get('humidity2', 0) or 0),
+                    'soil_moisture1': float(latest.get('soil_moisture1', 0) or 0),
+                    'soil_moisture2': float(latest.get('soil_moisture2', 0) or 0),
                     'last_update': latest.get('timestamp', 'N/A')
                 }
                 esp32_data['esp32_status'] = 'connected'
@@ -69,9 +74,6 @@ def load_latest_data_from_supabase():
         except Exception as e:
             print(f"Error cargando datos de Supabase: {e}")
     return False
-
-# Load initial data from Supabase
-load_latest_data_from_supabase()
 
 @app.route('/')
 def home():
@@ -546,7 +548,13 @@ def latest_data():
             'esp32_status': esp32_data['esp32_status']
         })
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        # Return current data even if Supabase fails
+        return jsonify({
+            'status': 'success',
+            'sensor_data': esp32_data['sensor_data'],
+            'esp32_status': esp32_data.get('esp32_status', 'disconnected'),
+            'warning': f'Error loading from Supabase: {str(e)}'
+        })
 
 @app.route('/led-status')
 def led_status():
