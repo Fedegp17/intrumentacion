@@ -14,7 +14,8 @@ Necesitas crear o actualizar la tabla `sensor_data` en Supabase con las siguient
 | `temperature2` | `real` o `float` | Temperatura del DHT11 Sensor 2 (GPIO 4) |
 | `humidity2` | `real` o `float` | Humedad del DHT11 Sensor 2 (GPIO 4) |
 | `soil_moisture1` | `real` o `float` | Humedad de suelo Sensor 1 (GPIO 35) |
-| `soil_moisture2` | `real` o `float` | Humedad de suelo Sensor 2 (GPIO 36) |
+| `soil_moisture2` | `real` o `float` | Humedad de suelo Sensor 2 (GPIO 34) |
+| `uv_index` | `real` o `float` | UV Index del sensor UV (GPIO 33) |
 | `timestamp` | `text` o `timestamp` | Fecha y hora del registro (formato: 'YYYY-MM-DD HH:MM:SS') |
 
 ## 🔧 Instrucciones para Crear/Actualizar la Tabla
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     humidity2 REAL,
     soil_moisture1 REAL,
     soil_moisture2 REAL,
+    uv_index REAL,
     timestamp TEXT
 );
 
@@ -42,19 +44,21 @@ CREATE TABLE IF NOT EXISTS sensor_data (
 CREATE INDEX IF NOT EXISTS idx_sensor_data_timestamp 
 ON sensor_data(timestamp DESC);
 
--- Habilitar Row Level Security (RLS) - Opcional pero recomendado
+-- IMPORTANTE: Habilitar Row Level Security (RLS) - REQUERIDO
 ALTER TABLE sensor_data ENABLE ROW LEVEL SECURITY;
 
--- Crear politica para permitir inserciones (si usas RLS)
+-- Crear politica para permitir inserciones (REQUERIDO si RLS esta habilitado)
 CREATE POLICY "Allow insert on sensor_data" 
-ON sensor_data FOR INSERT 
-TO anon 
+ON sensor_data 
+FOR INSERT 
+TO anon, authenticated
 WITH CHECK (true);
 
--- Crear politica para permitir lecturas (si usas RLS)
+-- Crear politica para permitir lecturas (REQUERIDO si RLS esta habilitado)
 CREATE POLICY "Allow select on sensor_data" 
-ON sensor_data FOR SELECT 
-TO anon 
+ON sensor_data 
+FOR SELECT 
+TO anon, authenticated
 USING (true);
 ```
 
@@ -77,7 +81,8 @@ ALTER TABLE sensor_data
 ADD COLUMN IF NOT EXISTS temperature2 REAL,
 ADD COLUMN IF NOT EXISTS humidity2 REAL,
 ADD COLUMN IF NOT EXISTS soil_moisture1 REAL,
-ADD COLUMN IF NOT EXISTS soil_moisture2 REAL;
+ADD COLUMN IF NOT EXISTS soil_moisture2 REAL,
+ADD COLUMN IF NOT EXISTS uv_index REAL;
 
 -- Renombrar columnas antiguas si es necesario
 -- (Si antes eran 'temperature' y 'humidity')
@@ -130,6 +135,7 @@ Para verificar que todo funciona:
   "humidity2": 63.8,
   "soil_moisture1": 45.5,
   "soil_moisture2": 48.2,
+  "uv_index": 3.5,
   "timestamp": "2025-11-04 19:50:00"
 }
 ```

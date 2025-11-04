@@ -39,10 +39,12 @@ try:
                 'timestamp': timestamp
             }
             result = supabase.table('sensor_data').insert(data).execute()
-            print(f"Supabase insert successful: {data}")
+            # Supabase insert successful
             return True
         except Exception as e:
-            print(f"Supabase insert error: {str(e)}")
+            # Supabase insert error - check logs
+            import sys
+            sys.stderr.write(f"Supabase insert error: {str(e)}\n")
             return False
     
     def get_sensor_data(limit=50):
@@ -58,12 +60,14 @@ try:
         try:
             result = supabase.table('sensor_data').select('*').order('timestamp', desc=True).limit(1).execute()
             if result.data and len(result.data) > 0:
-                print(f"Latest data from Supabase: {result.data[0]}")
+                # Latest data from Supabase
                 return result.data[0]
-            print("No data found in Supabase")
+            # No data found in Supabase
             return None
         except Exception as e:
-            print(f"Supabase get_latest error: {str(e)}")
+            # Supabase get_latest error
+            import sys
+            sys.stderr.write(f"Supabase get_latest error: {str(e)}\n")
             return None
     
     # Supabase configurado correctamente
