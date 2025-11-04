@@ -10,10 +10,12 @@ get_supabase_client = None
 
 try:
     from supabase_config import insert_sensor_data, get_latest_sensor_data, get_supabase_client
-    SUPABASE_AVAILABLE = True
+    if insert_sensor_data and get_latest_sensor_data:
+        SUPABASE_AVAILABLE = True
 except Exception as e:
     SUPABASE_AVAILABLE = False
-    print(f"Supabase no disponible: {e}")
+    # Don't print in production to avoid encoding issues
+    pass
 
 app = Flask(__name__)
 
@@ -46,13 +48,13 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
                 timestamp
             )
             if success:
-                print(f"Datos guardados en Supabase: T1={temperature1}C, H1={humidity1}%, T2={temperature2}C, H2={humidity2}%, SM1={soil_moisture1}%, SM2={soil_moisture2}%")
+                pass  # Data saved successfully
             else:
-                print(f"Error guardando en Supabase")
+                pass  # Error saving to Supabase
         except Exception as e:
-            print(f"Error con Supabase: {e}")
+            pass  # Error with Supabase
     
-    print(f"Sensor data saved: T1={temperature1}C, H1={humidity1}%, T2={temperature2}C, H2={humidity2}%, SM1={soil_moisture1}%, SM2={soil_moisture2}%")
+    # Sensor data saved
 
 def load_latest_data_from_supabase():
     """Load latest sensor data from Supabase"""
@@ -72,7 +74,7 @@ def load_latest_data_from_supabase():
                 esp32_data['esp32_status'] = 'connected'
                 return True
         except Exception as e:
-            print(f"Error cargando datos de Supabase: {e}")
+            pass  # Error loading from Supabase
     return False
 
 @app.route('/')
