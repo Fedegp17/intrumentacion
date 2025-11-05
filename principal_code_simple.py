@@ -129,11 +129,12 @@ def load_latest_data_from_supabase():
                     'last_update': latest.get('timestamp', 'N/A')
                 }
                 esp32_data['esp32_status'] = 'connected'
-            esp32_data['connection_status'] = 'connected'
-            esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                esp32_data['connection_status'] = 'connected'
+                esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 return True
         except Exception as e:
-            pass
+            import sys
+            sys.stderr.write(f"ERROR in load_latest_data_from_supabase: {str(e)}\n")
     return False
 
 @app.route('/')
@@ -466,6 +467,7 @@ def home():
 @app.route('/data', methods=['GET', 'POST'])
 def receive_sensor_data():
     """Receive sensor data from ESP32"""
+    import sys
     try:
         if request.method == 'POST':
             data = request.get_json() or {}
@@ -493,17 +495,16 @@ def receive_sensor_data():
             save_success = save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index)
             
             if not save_success:
-                import sys
                 sys.stderr.write("WARNING: Data received but failed to save to Supabase\n")
 
             esp32_data['sensor_data'] = {
-                'temperature1': temperature1,
-                'humidity1': humidity1,
-                'temperature2': temperature2,
-                'humidity2': humidity2,
-                'soil_moisture1': soil_moisture1,
-                'soil_moisture2': soil_moisture2,
-                'uv_index': uv_index,
+                'temperature1': float(temperature1),
+                'humidity1': float(humidity1),
+                'temperature2': float(temperature2),
+                'humidity2': float(humidity2),
+                'soil_moisture1': float(soil_moisture1),
+                'soil_moisture2': float(soil_moisture2),
+                'uv_index': float(uv_index),
                 'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             esp32_data['esp32_status'] = 'connected'
@@ -520,6 +521,10 @@ def receive_sensor_data():
         else:
             return jsonify(esp32_data)
     except Exception as e:
+        import sys
+        sys.stderr.write(f"ERROR in receive_sensor_data: {str(e)}\n")
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/latest-data')
