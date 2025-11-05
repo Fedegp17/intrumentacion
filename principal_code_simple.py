@@ -71,11 +71,11 @@ esp32_data = {
         'last_update': 'N/A'
     },
     'esp32_status': 'disconnected',
-    'led_status': 'OFF',
-    'led_state': 'off'
+    'connection_status': 'checking',
+    'last_communication_test': None
 }
 
-led_command_queue = None
+communication_test_queue = False
 
 def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index):
     """Save sensor data to Supabase"""
@@ -112,6 +112,8 @@ def load_latest_data_from_supabase():
                     'last_update': latest.get('timestamp', 'N/A')
                 }
                 esp32_data['esp32_status'] = 'connected'
+            esp32_data['connection_status'] = 'connected'
+            esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 return True
         except Exception as e:
             pass
@@ -323,15 +325,31 @@ def home():
                     <button class="btn btn-success" onclick="fetchData()" style="width: 100%;">
                         <i class="fas fa-sync-alt"></i> Actualizar Datos Ahora
                     </button>
-                    <button class="btn btn-warning" onclick="testLED('on')" style="width: 100%;">
-                        <i class="fas fa-lightbulb"></i> Probar LED - Encender
+                    <button class="btn btn-warning" onclick="testCommunication()" style="width: 100%;">
+                        <i class="fas fa-wifi"></i> Prueba de Comunicacion
                     </button>
-                    <button class="btn btn-warning" onclick="testLED('off')" style="width: 100%;">
-                        <i class="fas fa-lightbulb"></i> Probar LED - Apagar
-                    </button>
-                    <button class="btn btn-warning" onclick="testLED('blink')" style="width: 100%;">
-                        <i class="fas fa-lightbulb"></i> Probar LED - Parpadear
-                    </button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon" style="background: linear-gradient(135deg, #17a2b8, #138496);">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <div>
+                        <h3>Estado de Conexion</h3>
+                        <p>ESP32 - Servidor</p>
+                    </div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Status ESP32</span>
+                    <span class="metric-value" id="connection-status" style="font-size: 1.2rem;">
+                        <span id="status-indicator" style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #ffc107; margin-right: 5px;"></span>
+                        <span id="status-text">Verificando...</span>
+                    </span>
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                    <small style="color: #666;">Ultima verificacion: <span id="last-check">-</span></small>
                 </div>
             </div>
         </div>
@@ -359,19 +377,55 @@ def home():
             document.getElementById('uv-value').textContent = sensorData.uv_index.toFixed(1);
         }
         
-        function testLED(action) {
-            fetch('/led-control', {
+        function testCommunication() {
+            fetch('/communication-test', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: action })
+                body: JSON.stringify({ test: true })
             })
                 .then(response => response.json())
-                .then(data => console.log('LED:', data))
-                .catch(error => console.error('Error:', error));
+                .then(data => {
+                    console.log('Communication test:', data);
+                    alert('Prueba de comunicacion enviada. Revisa el Serial Monitor del ESP32.');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al enviar prueba de comunicacion');
+                });
+        }
+        
+        function updateConnectionStatus() {
+            fetch('/connection-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusIndicator = document.getElementById('status-indicator');
+                    const statusText = document.getElementById('status-text');
+                    const lastCheck = document.getElementById('last-check');
+                    
+                    if (data.connected) {
+                        statusIndicator.style.background = '#28a745';
+                        statusText.textContent = 'Conectado';
+                    } else {
+                        statusIndicator.style.background = '#dc3545';
+                        statusText.textContent = 'Desconectado';
+                    }
+                    
+                    if (data.last_check) {
+                        lastCheck.textContent = new Date(data.last_check).toLocaleTimeString();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('status-indicator').style.background = '#ffc107';
+                    document.getElementById('status-text').textContent = 'Error';
+                });
         }
         
         // Auto-refresh cada 5 minutos
         setInterval(fetchData, 300000);
+        
+        // Check connection status every 10 seconds
+        setInterval(updateConnectionStatus, 10000);
         
         // Inicializar datos
         document.addEventListener('DOMContentLoaded', function() {
@@ -385,6 +439,7 @@ def home():
                 uv_index: {{ esp32_data.sensor_data.uv_index }}
             });
             fetchData();
+            updateConnectionStatus();
         });
     </script>
 </body>
@@ -431,6 +486,8 @@ def receive_sensor_data():
                 'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
             esp32_data['esp32_status'] = 'connected'
+            esp32_data['connection_status'] = 'connected'
+            esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             response = {
                 'status': 'success',
@@ -461,50 +518,58 @@ def latest_data():
             'esp32_status': esp32_data.get('esp32_status', 'disconnected')
         })
 
-@app.route('/led-control', methods=['POST'])
-def led_control():
-    """Control LED on ESP32"""
-    global led_command_queue
-    try:
-        data = request.get_json() or {}
-        action = data.get('action', 'off')
-        led_command_queue = action
-        
-        if action == 'on':
-            esp32_data['led_status'] = 'ON'
-            esp32_data['led_state'] = 'on'
-        elif action == 'off':
-            esp32_data['led_status'] = 'OFF'
-            esp32_data['led_state'] = 'off'
-        elif action == 'blink':
-            esp32_data['led_status'] = 'BLINKING'
-            esp32_data['led_state'] = 'blink'
-        
-        return jsonify({
-            'status': 'success',
-            'message': f'LED {action} command sent',
-            'led_status': esp32_data['led_status'],
-            'led_state': esp32_data['led_state']
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/led-status')
-def led_status():
-    """Get LED status and return commands for ESP32"""
-    global led_command_queue
+@app.route('/communication-test', methods=['GET', 'POST'])
+def communication_test():
+    """Handle communication test request"""
+    global communication_test_queue
     
+    if request.method == 'POST':
+        # ESP32 sending confirmation
+        try:
+            data = request.get_json() or {}
+            if data.get('response') == 'conectado':
+                esp32_data['last_communication_test'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                esp32_data['esp32_status'] = 'connected'
+                esp32_data['connection_status'] = 'connected'
+                esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Communication test received'
+                })
+        except Exception as e:
+            pass
+        
+        # Web page requesting test
+        try:
+            communication_test_queue = True
+            return jsonify({
+                'status': 'success',
+                'message': 'Communication test request queued'
+            })
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    # ESP32 checking for test request
     response = {
         'status': 'success',
-        'led_status': esp32_data['led_status'],
-        'led_state': esp32_data['led_state']
+        'test_request': communication_test_queue
     }
     
-    if led_command_queue is not None:
-        response['led_command'] = led_command_queue
-        led_command_queue = None
+    if communication_test_queue:
+        communication_test_queue = False
     
     return jsonify(response)
+
+@app.route('/connection-status')
+def connection_status():
+    """Get ESP32 connection status"""
+    return jsonify({
+        'status': 'success',
+        'connected': esp32_data.get('esp32_status') == 'connected',
+        'connection_status': esp32_data.get('connection_status', 'unknown'),
+        'last_check': esp32_data.get('last_connection_check', None),
+        'last_communication_test': esp32_data.get('last_communication_test', None)
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

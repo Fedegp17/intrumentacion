@@ -11,7 +11,6 @@ const char* password = "mKyUQGz295";
 // Server configuration
 // URL guardada en CREDENCIALES.txt
 const char* serverURL = "https://intrumentacion-7fkz.vercel.app";  // URL de Vercel
-const int LED_PIN = 13;  // LED interno del ESP32
 
 // DHT11 sensor configuration - Sensor 1
 #define DHT_PIN_1 2        // GPIO 2 (D2) - First DHT11 sensor
@@ -59,11 +58,10 @@ float soilMoisture2 = 0.0;  // Percentage (0-100%)
 // Sensor data variables - UV Sensor
 float uvIndex = 0.0;  // UV Index (0-15)
 
-// LED control variables
-bool ledState = false;
-bool ledBlinking = false;
-unsigned long lastBlinkTime = 0;
-const unsigned long blinkInterval = 500;  // 500ms blink interval
+// Connection status check
+unsigned long lastConnectionCheck = 0;
+const unsigned long connectionCheckInterval = 10000;  // 10 segundos
+bool serverConnectionStatus = false;
 
 void setup() {
   Serial.begin(115200);
@@ -71,9 +69,6 @@ void setup() {
   
   Serial.println("ESP32 Multi-Sensor Monitor Starting...");
   
-  // Initialize LED
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);  // LED off initially
   
   // Initialize DHT11 sensors
   dht1.begin();
@@ -106,7 +101,7 @@ void setup() {
   
   Serial.println("ESP32 Multi-Sensor Monitor Ready!");
   Serial.println("Will send data every 5 minutes");
-  Serial.println("LED control enabled - checking commands every 10 seconds");
+  Serial.println("Server connection check every 10 seconds");
   Serial.println("Sensors: 2x DHT11 + 2x Soil Moisture + 1x UV");
   Serial.println("--------------------------------");
 }
@@ -146,13 +141,16 @@ void loop() {
     lastDataSend = currentTime;
   }
   
-  // Update LED state (for blinking)
-  updateLED();
+  // Check server connection status every 10 seconds
+  if (currentTime - lastConnectionCheck > connectionCheckInterval) {
+    checkServerConnection();
+    lastConnectionCheck = currentTime;
+  }
   
-  // Check for server commands every 10 seconds
+  // Check for communication test request every 10 seconds
   static unsigned long lastCommandCheck = 0;
   if (currentTime - lastCommandCheck > 10000) {  // Every 10 seconds
-    checkServerCommands();
+    checkCommunicationTest();
     lastCommandCheck = currentTime;
   }
   
@@ -171,8 +169,6 @@ void connectToWiFi() {
     Serial.print(".");
     connectionAttempts++;
     
-    // Blink LED during connection attempt
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
   }
   
   if (WiFi.status() == WL_CONNECTED) {
@@ -183,20 +179,13 @@ void connectToWiFi() {
     Serial.print("Server URL: ");
     Serial.println(serverURL);
     
-    // LED blinks 3 times for successful connection
-    for (int i = 0; i < 3; i++) {
-      digitalWrite(LED_PIN, LOW);
-      delay(200);
-      digitalWrite(LED_PIN, HIGH);
-      delay(200);
-    }
-    
     serverConnected = true;
+    serverConnectionStatus = true;
   } else {
     Serial.println();
     Serial.println("WiFi connection failed!");
-    digitalWrite(LED_PIN, HIGH);  // LED off on failure
     serverConnected = false;
+    serverConnectionStatus = false;
   }
 }
 
@@ -242,10 +231,6 @@ void readDHT11Sensor1() {
   Serial.println("Data ready for transmission");
   Serial.println("--------------------------------");
   
-  // LED blinks once for successful reading
-  digitalWrite(LED_PIN, LOW);
-  delay(100);
-  digitalWrite(LED_PIN, HIGH);
 }
 
 void readDHT11Sensor2() {
@@ -423,27 +408,20 @@ void sendSensorData() {
     Serial.print("Server response: ");
     Serial.println(response);
     
-    // LED blinks twice for successful send
-    for (int i = 0; i < 2; i++) {
-      digitalWrite(LED_PIN, LOW);
-      delay(150);
-      digitalWrite(LED_PIN, HIGH);
-      delay(150);
-    }
-    
     serverConnected = true;
+    serverConnectionStatus = true;
     
   } else if (httpCode > 0) {
     Serial.printf("HTTP error: %d\n", httpCode);
     String response = http.getString();
     Serial.println("Response: " + response);
-    digitalWrite(LED_PIN, HIGH);  // LED off on error
     serverConnected = false;
+    serverConnectionStatus = false;
     
   } else {
     Serial.println("Connection failed to server");
-    digitalWrite(LED_PIN, HIGH);  // LED off on error
     serverConnected = false;
+    serverConnectionStatus = false;
   }
   
   http.end();
@@ -459,52 +437,41 @@ void sendSensorData() {
   Serial.println("--------------------------------");
 }
 
-// LED Control Functions
-void controlLED(String action) {
-  Serial.println("LED Control: " + action);
+void checkServerConnection() {
+  if (WiFi.status() != WL_CONNECTED) {
+    serverConnectionStatus = false;
+    Serial.println("[Connection Status] WiFi: DISCONNECTED");
+    return;
+  }
   
-  if (action == "on") {
-    ledState = true;
-    ledBlinking = false;
-    digitalWrite(LED_PIN, LOW);  // LED on
-    Serial.println("LED turned ON");
-    
-  } else if (action == "off") {
-    ledState = false;
-    ledBlinking = false;
-    digitalWrite(LED_PIN, HIGH);  // LED off
-    Serial.println("LED turned OFF");
-    
-  } else if (action == "blink") {
-    ledState = true;
-    ledBlinking = true;
-    Serial.println("LED set to BLINKING mode");
-    
-  } else if (action == "toggle") {
-    ledState = !ledState;
-    ledBlinking = false;
-    digitalWrite(LED_PIN, ledState ? LOW : HIGH);
-    Serial.println(ledState ? "LED toggled ON" : "LED toggled OFF");
+  HTTPClient http;
+  String url = String(serverURL) + "/connection-status";
+  http.begin(url);
+  http.setTimeout(5000);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == 200) {
+    serverConnectionStatus = true;
+    Serial.println("[Connection Status] Server: CONNECTED");
+  } else {
+    serverConnectionStatus = false;
+    Serial.printf("[Connection Status] Server: DISCONNECTED (HTTP %d)\n", httpCode);
   }
+  
+  http.end();
+  
+  // Update server connection status
+  serverConnected = serverConnectionStatus;
 }
 
-void updateLED() {
-  if (ledBlinking) {
-    unsigned long currentTime = millis();
-    if (currentTime - lastBlinkTime >= blinkInterval) {
-      digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-      lastBlinkTime = currentTime;
-    }
-  }
-}
-
-void checkServerCommands() {
+void checkCommunicationTest() {
   if (WiFi.status() != WL_CONNECTED) {
     return;
   }
   
   HTTPClient http;
-  String url = String(serverURL) + "/led-status";
+  String url = String(serverURL) + "/communication-test";
   http.begin(url);
   http.setTimeout(5000);
   
@@ -512,23 +479,37 @@ void checkServerCommands() {
   
   if (httpCode == 200) {
     String response = http.getString();
-    Serial.println("Checking server commands...");
-    
-    // Parse JSON response to check for LED commands
     DynamicJsonDocument doc(256);
     deserializeJson(doc, response);
     
-    if (doc.containsKey("led_command")) {
-      String command = doc["led_command"];
-      Serial.println("Received LED command: " + command);
-      controlLED(command);
+    if (doc.containsKey("test_request") && doc["test_request"] == true) {
+      Serial.println(">>> CONECTADO <<<");
+      // Send confirmation back
+      sendCommunicationConfirmation();
     }
-    
-    if (doc.containsKey("sensor_request")) {
-      Serial.println("Received sensor test request - reading sensors now!");
-      readAllSensors();
-      sendSensorData();
-    }
+  }
+  
+  http.end();
+}
+
+void sendCommunicationConfirmation() {
+  HTTPClient http;
+  String url = String(serverURL) + "/communication-test";
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(5000);
+  
+  DynamicJsonDocument doc(128);
+  doc["response"] = "conectado";
+  doc["timestamp"] = millis();
+  
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  int httpCode = http.POST(jsonString);
+  
+  if (httpCode == 200) {
+    Serial.println("Communication test confirmation sent");
   }
   
   http.end();
