@@ -28,18 +28,25 @@ try:
             """Inserta datos del sensor en Supabase"""
             try:
                 data = {
-                    'temperature1': temperature1,
-                    'humidity1': humidity1,
-                    'temperature2': temperature2,
-                    'humidity2': humidity2,
-                    'soil_moisture1': soil_moisture1,
-                    'soil_moisture2': soil_moisture2,
-                    'uv_index': uv_index,
-                    'timestamp': timestamp
+                    'temperature1': float(temperature1),
+                    'humidity1': float(humidity1),
+                    'temperature2': float(temperature2),
+                    'humidity2': float(humidity2),
+                    'soil_moisture1': float(soil_moisture1),
+                    'soil_moisture2': float(soil_moisture2),
+                    'uv_index': float(uv_index),
+                    'timestamp': str(timestamp)
                 }
                 result = supabase.table('sensor_data').insert(data).execute()
-                return True
+                if result.data:
+                    return True
+                else:
+                    import sys
+                    sys.stderr.write("ERROR: Supabase insert returned no data\n")
+                    return False
             except Exception as e:
+                import sys
+                sys.stderr.write(f"ERROR: Failed to save to Supabase: {str(e)}\n")
                 return False
         
         def get_latest_sensor_data():
@@ -79,21 +86,31 @@ communication_test_queue = False
 
 def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index):
     """Save sensor data to Supabase"""
+    import sys
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    if SUPABASE_AVAILABLE and insert_sensor_data:
-        try:
-            success = insert_sensor_data(
-                float(temperature1), float(humidity1), 
-                float(temperature2), float(humidity2),
-                float(soil_moisture1), float(soil_moisture2),
-                float(uv_index),
-                timestamp
-            )
-            return success
-        except Exception as e:
-            return False
-    return False
+    if not SUPABASE_AVAILABLE:
+        sys.stderr.write("ERROR: Supabase not available - check environment variables\n")
+        return False
+    
+    if not insert_sensor_data:
+        sys.stderr.write("ERROR: insert_sensor_data function not available\n")
+        return False
+    
+    try:
+        success = insert_sensor_data(
+            float(temperature1), float(humidity1), 
+            float(temperature2), float(humidity2),
+            float(soil_moisture1), float(soil_moisture2),
+            float(uv_index),
+            timestamp
+        )
+        if not success:
+            sys.stderr.write("ERROR: Failed to save to Supabase\n")
+        return success
+    except Exception as e:
+        sys.stderr.write(f"ERROR: Exception in save_sensor_data: {str(e)}\n")
+        return False
 
 def load_latest_data_from_supabase():
     """Load latest sensor data from Supabase"""
@@ -474,6 +491,10 @@ def receive_sensor_data():
 
             # Guardar en Supabase
             save_success = save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index)
+            
+            if not save_success:
+                import sys
+                sys.stderr.write("WARNING: Data received but failed to save to Supabase\n")
 
             esp32_data['sensor_data'] = {
                 'temperature1': temperature1,
