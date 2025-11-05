@@ -129,9 +129,8 @@ def load_latest_data_from_supabase():
                     'uv_index': float(latest.get('uv_index', 0) or 0),
                     'last_update': latest.get('timestamp', 'N/A')
                 }
-                esp32_data['esp32_status'] = 'connected'
-                esp32_data['connection_status'] = 'connected'
-                esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # NO actualizar estado de conexion aqui - solo actualizar con datos reales del ESP32
+                # El estado de conexion se verifica en /connection-status basado en last_data_received
                 return True
         except Exception as e:
             import sys
