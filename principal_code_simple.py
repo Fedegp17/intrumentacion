@@ -79,7 +79,8 @@ esp32_data = {
     },
     'esp32_status': 'disconnected',
     'connection_status': 'checking',
-    'last_communication_test': None
+    'last_communication_test': None,
+    'last_data_received': None  # Timestamp del ultimo dato recibido del ESP32
 }
 
 communication_test_queue = False
@@ -507,6 +508,8 @@ def receive_sensor_data():
                 'uv_index': float(uv_index),
                 'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
+            # Actualizar timestamp del ultimo dato recibido
+            esp32_data['last_data_received'] = datetime.now()
             esp32_data['esp32_status'] = 'connected'
             esp32_data['connection_status'] = 'connected'
             esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -555,6 +558,7 @@ def communication_test():
             data = request.get_json() or {}
             if data.get('response') == 'conectado':
                 esp32_data['last_communication_test'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                esp32_data['last_data_received'] = datetime.now()  # Actualizar timestamp de ultimo contacto
                 esp32_data['esp32_status'] = 'connected'
                 esp32_data['connection_status'] = 'connected'
                 esp32_data['last_connection_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -589,12 +593,40 @@ def communication_test():
 @app.route('/connection-status')
 def connection_status():
     """Get ESP32 connection status"""
+    # Verificar si el ESP32 esta realmente conectado
+    # El ESP32 envia datos cada 5 minutos, asi que si no hay datos en 7 minutos, esta desconectado
+    is_connected = False
+    connection_status_str = 'disconnected'
+    
+    last_data = esp32_data.get('last_data_received')
+    if last_data:
+        # Calcular tiempo transcurrido desde el ultimo dato
+        time_diff = (datetime.now() - last_data).total_seconds()
+        # Si han pasado menos de 7 minutos (420 segundos), esta conectado
+        if time_diff < 420:  # 7 minutos = 420 segundos
+            is_connected = True
+            connection_status_str = 'connected'
+        else:
+            # Ha pasado mas de 7 minutos, marcar como desconectado
+            is_connected = False
+            connection_status_str = 'disconnected'
+            esp32_data['esp32_status'] = 'disconnected'
+            esp32_data['connection_status'] = 'disconnected'
+    else:
+        # Nunca se ha recibido un dato
+        is_connected = False
+        connection_status_str = 'disconnected'
+        esp32_data['esp32_status'] = 'disconnected'
+        esp32_data['connection_status'] = 'disconnected'
+    
     return jsonify({
         'status': 'success',
-        'connected': esp32_data.get('esp32_status') == 'connected',
-        'connection_status': esp32_data.get('connection_status', 'unknown'),
+        'connected': is_connected,
+        'connection_status': connection_status_str,
         'last_check': esp32_data.get('last_connection_check', None),
-        'last_communication_test': esp32_data.get('last_communication_test', None)
+        'last_communication_test': esp32_data.get('last_communication_test', None),
+        'last_data_received': last_data.strftime('%Y-%m-%d %H:%M:%S') if last_data else None,
+        'seconds_since_last_data': (datetime.now() - last_data).total_seconds() if last_data else None
     })
 
 if __name__ == '__main__':
