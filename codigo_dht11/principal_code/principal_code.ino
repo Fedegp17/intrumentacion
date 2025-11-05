@@ -490,6 +490,29 @@ void checkCommunicationTest() {
   }
   
   http.end();
+  
+  // Check for data request
+  HTTPClient http2;
+  String url2 = String(serverURL) + "/data-request";
+  http2.begin(url2);
+  http2.setTimeout(5000);
+  
+  int httpCode2 = http2.GET();
+  
+  if (httpCode2 == 200) {
+    String response2 = http2.getString();
+    DynamicJsonDocument doc2(256);
+    deserializeJson(doc2, response2);
+    
+    if (doc2.containsKey("data_request") && doc2["data_request"] == true) {
+      Serial.println(">>> Solicitud de datos recibida - enviando datos ahora <<<");
+      // Send sensor data immediately
+      readAllSensors();
+      sendSensorData();
+    }
+  }
+  
+  http2.end();
 }
 
 void sendCommunicationConfirmation() {

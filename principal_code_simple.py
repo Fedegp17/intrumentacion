@@ -46,7 +46,16 @@ try:
                     return False
             except Exception as e:
                 import sys
-                sys.stderr.write(f"ERROR: Failed to save to Supabase: {str(e)}\n")
+                error_msg = f"ERROR: Failed to save to Supabase: {str(e)}"
+                sys.stderr.write(error_msg + "\n")
+                # Guardar en logs
+                server_logs.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'level': 'ERROR',
+                    'message': error_msg
+                })
+                if len(server_logs) > 100:
+                    server_logs.pop(0)
                 return False
         
         def get_latest_sensor_data():
@@ -84,6 +93,8 @@ esp32_data = {
 }
 
 communication_test_queue = False
+data_request_queue = False  # Cola para solicitar datos al ESP32
+server_logs = []  # Logs del servidor para debugging (max 100 entradas)
 
 def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index):
     """Save sensor data to Supabase"""
@@ -107,7 +118,24 @@ def save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_mois
             timestamp
         )
         if not success:
-            sys.stderr.write("ERROR: Failed to save to Supabase\n")
+            error_msg = "ERROR: Failed to save to Supabase"
+            sys.stderr.write(error_msg + "\n")
+            server_logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'ERROR',
+                'message': error_msg
+            })
+            if len(server_logs) > 100:
+                server_logs.pop(0)
+        else:
+            # Log exito
+            server_logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'INFO',
+                'message': f"Data saved to Supabase: T1={temperature1}, H1={humidity1}"
+            })
+            if len(server_logs) > 100:
+                server_logs.pop(0)
         return success
     except Exception as e:
         sys.stderr.write(f"ERROR: Exception in save_sensor_data: {str(e)}\n")
@@ -231,6 +259,9 @@ def home():
         .btn-success:hover { background: #218838; }
         .btn-warning { background: #ffc107; color: #333; }
         .btn-warning:hover { background: #e0a800; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -340,8 +371,11 @@ def home():
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button class="btn btn-success" onclick="fetchData()" style="width: 100%;">
-                        <i class="fas fa-sync-alt"></i> Actualizar Datos Ahora
+                    <button class="btn btn-success" onclick="fetchData()" id="refresh-btn" style="width: 100%;">
+                        <i class="fas fa-sync-alt"></i> <span id="refresh-text">Actualizar Datos Ahora</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="requestDataFromESP32()" id="get-data-btn" style="width: 100%; background: #007bff; color: white;">
+                        <i class="fas fa-download"></i> <span id="get-data-text">Solicitar Datos al ESP32</span>
                     </button>
                     <button class="btn btn-warning" onclick="testCommunication()" style="width: 100%;">
                         <i class="fas fa-wifi"></i> Prueba de Comunicacion
@@ -375,14 +409,75 @@ def home():
     
     <script>
         function fetchData() {
+            const btn = document.getElementById('refresh-btn');
+            const text = document.getElementById('refresh-text');
+            const originalText = text.textContent;
+            
+            btn.disabled = true;
+            text.textContent = 'Actualizando...';
+            
             fetch('/latest-data')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.sensor_data) {
                         updateSensorData(data.sensor_data);
+                        text.textContent = 'Actualizado!';
+                        setTimeout(() => {
+                            text.textContent = originalText;
+                            btn.disabled = false;
+                        }, 2000);
+                    } else {
+                        throw new Error('No sensor data in response');
                     }
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => {
+                    console.error('Error:', error);
+                    text.textContent = 'Error al actualizar';
+                    setTimeout(() => {
+                        text.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                    alert('Error al actualizar datos: ' + error.message);
+                });
+        }
+        
+        function requestDataFromESP32() {
+            const btn = document.getElementById('get-data-btn');
+            const text = document.getElementById('get-data-text');
+            const originalText = text.textContent;
+            
+            btn.disabled = true;
+            text.textContent = 'Solicitando...';
+            
+            fetch('/request-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request: true })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Data request:', data);
+                    text.textContent = 'Solicitud enviada!';
+                    alert('Solicitud enviada al ESP32. Los datos se enviaran en los proximos 10 segundos.');
+                    setTimeout(() => {
+                        text.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    text.textContent = 'Error';
+                    setTimeout(() => {
+                        text.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                    alert('Error al solicitar datos: ' + error.message);
+                });
         }
         
         function updateSensorData(sensorData) {
@@ -495,7 +590,24 @@ def receive_sensor_data():
             save_success = save_sensor_data(temperature1, humidity1, temperature2, humidity2, soil_moisture1, soil_moisture2, uv_index)
             
             if not save_success:
-                sys.stderr.write("WARNING: Data received but failed to save to Supabase\n")
+                error_msg = "WARNING: Data received but failed to save to Supabase"
+                sys.stderr.write(error_msg + "\n")
+                server_logs.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'level': 'WARNING',
+                    'message': error_msg
+                })
+                if len(server_logs) > 100:
+                    server_logs.pop(0)
+            else:
+                # Log exito
+                server_logs.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'level': 'INFO',
+                    'message': f"Data received and saved successfully from ESP32"
+                })
+                if len(server_logs) > 100:
+                    server_logs.pop(0)
 
             esp32_data['sensor_data'] = {
                 'temperature1': float(temperature1),
@@ -532,18 +644,45 @@ def receive_sensor_data():
 @app.route('/latest-data')
 def latest_data():
     """Get latest sensor data from Supabase"""
+    import sys
     try:
-        load_latest_data_from_supabase()
+        success = load_latest_data_from_supabase()
+        if success:
+            server_logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'INFO',
+                'message': 'Latest data loaded from Supabase successfully'
+            })
+        else:
+            server_logs.append({
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': 'WARNING',
+                'message': 'Failed to load data from Supabase or no data available'
+            })
+        if len(server_logs) > 100:
+            server_logs.pop(0)
+        
         return jsonify({
             'status': 'success',
             'sensor_data': esp32_data['sensor_data'],
-            'esp32_status': esp32_data['esp32_status']
+            'esp32_status': esp32_data['esp32_status'],
+            'last_update': esp32_data['sensor_data'].get('last_update', 'N/A')
         })
     except Exception as e:
+        error_msg = f"ERROR in latest_data: {str(e)}"
+        sys.stderr.write(error_msg + "\n")
+        server_logs.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'ERROR',
+            'message': error_msg
+        })
+        if len(server_logs) > 100:
+            server_logs.pop(0)
         return jsonify({
-            'status': 'success',
-            'sensor_data': esp32_data['sensor_data'],
-            'esp32_status': esp32_data.get('esp32_status', 'disconnected')
+            'status': 'error',
+            'sensor_data': esp32_data.get('sensor_data', {}),
+            'esp32_status': esp32_data.get('esp32_status', 'disconnected'),
+            'error': str(e)
         })
 
 @app.route('/communication-test', methods=['GET', 'POST'])
@@ -581,13 +720,63 @@ def communication_test():
     # ESP32 checking for test request
     response = {
         'status': 'success',
-        'test_request': communication_test_queue
+        'test_request': communication_test_queue,
+        'data_request': data_request_queue
     }
     
     if communication_test_queue:
         communication_test_queue = False
     
+    if data_request_queue:
+        data_request_queue = False
+    
     return jsonify(response)
+
+@app.route('/data-request')
+def data_request():
+    """ESP32 checks for data request"""
+    global data_request_queue
+    response = {
+        'status': 'success',
+        'data_request': data_request_queue
+    }
+    
+    if data_request_queue:
+        data_request_queue = False
+    
+    return jsonify(response)
+
+@app.route('/request-data', methods=['POST'])
+def request_data():
+    """Request data from ESP32"""
+    global data_request_queue
+    try:
+        data_request_queue = True
+        server_logs.append({
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'level': 'INFO',
+            'message': 'Data request queued for ESP32'
+        })
+        if len(server_logs) > 100:
+            server_logs.pop(0)
+        return jsonify({
+            'status': 'success',
+            'message': 'Data request queued. ESP32 will send data within 10 seconds.'
+        })
+    except Exception as e:
+        import sys
+        error_msg = f"ERROR in request_data: {str(e)}"
+        sys.stderr.write(error_msg + "\n")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/logs')
+def get_logs():
+    """Get server logs for debugging"""
+    return jsonify({
+        'status': 'success',
+        'logs': server_logs[-50:],  # Ultimos 50 logs
+        'total_logs': len(server_logs)
+    })
 
 @app.route('/connection-status')
 def connection_status():
