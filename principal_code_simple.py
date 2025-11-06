@@ -688,7 +688,7 @@ def latest_data():
 @app.route('/communication-test', methods=['GET', 'POST'])
 def communication_test():
     """Handle communication test request"""
-    global communication_test_queue
+    global communication_test_queue, data_request_queue
     
     if request.method == 'POST':
         # ESP32 sending confirmation
@@ -717,20 +717,33 @@ def communication_test():
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
     
-    # ESP32 checking for test request
-    response = {
-        'status': 'success',
-        'test_request': communication_test_queue,
-        'data_request': data_request_queue
-    }
-    
-    if communication_test_queue:
-        communication_test_queue = False
-    
-    if data_request_queue:
-        data_request_queue = False
-    
-    return jsonify(response)
+    # ESP32 checking for test request (GET)
+    try:
+        response = {
+            'status': 'success',
+            'test_request': communication_test_queue if 'communication_test_queue' in globals() else False,
+            'data_request': data_request_queue if 'data_request_queue' in globals() else False
+        }
+        
+        if communication_test_queue:
+            communication_test_queue = False
+        
+        if data_request_queue:
+            data_request_queue = False
+        
+        return jsonify(response)
+    except Exception as e:
+        import sys
+        error_msg = f"ERROR in communication_test GET: {str(e)}"
+        sys.stderr.write(error_msg + "\n")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'status': 'error',
+            'message': error_msg,
+            'test_request': False,
+            'data_request': False
+        }), 500
 
 @app.route('/data-request')
 def data_request():
