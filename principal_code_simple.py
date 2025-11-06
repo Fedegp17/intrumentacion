@@ -165,6 +165,12 @@ def load_latest_data_from_supabase():
             sys.stderr.write(f"ERROR in load_latest_data_from_supabase: {str(e)}\n")
     return False
 
+@app.route('/favicon.ico')
+@app.route('/favicon.png')
+def favicon():
+    """Serve favicon to avoid 404 errors"""
+    return '', 204  # No Content - prevents 404 errors in logs
+
 @app.route('/')
 def home():
     """Main dashboard page"""
