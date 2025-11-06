@@ -452,7 +452,10 @@ def home():
             const originalText = text.textContent;
             
             btn.disabled = true;
-            text.textContent = 'Solicitando...';
+            text.textContent = 'Enviando peticion...';
+            
+            // Guardar timestamp antes de enviar la solicitud
+            const requestTime = new Date().getTime();
             
             fetch('/request-data', {
                 method: 'POST',
@@ -462,12 +465,63 @@ def home():
                 .then(response => response.json())
                 .then(data => {
                     console.log('Data request:', data);
-                    text.textContent = 'Solicitud enviada!';
-                    alert('Solicitud enviada al ESP32. Los datos se enviaran en los proximos 10 segundos.');
-                    setTimeout(() => {
-                        text.textContent = originalText;
-                        btn.disabled = false;
-                    }, 2000);
+                    // Mostrar mensaje de peticion enviada
+                    alert('Peticion de datos');
+                    text.textContent = 'Esperando datos...';
+                    
+                    // Polling para verificar cuando se reciben los datos
+                    let pollCount = 0;
+                    const maxPolls = 30; // Maximo 30 intentos (30 * 2 segundos = 60 segundos)
+                    
+                    const checkForData = setInterval(() => {
+                        pollCount++;
+                        
+                        fetch('/connection-status')
+                            .then(response => response.json())
+                            .then(statusData => {
+                                if (statusData.last_data_received) {
+                                    // Convertir timestamp a milisegundos
+                                    const lastDataTime = new Date(statusData.last_data_received).getTime();
+                                    
+                                    // Si el timestamp es mas reciente que cuando se envio la solicitud
+                                    if (lastDataTime > requestTime) {
+                                        clearInterval(checkForData);
+                                        text.textContent = 'Datos recibidos!';
+                                        alert('Datos recibidos correctamente');
+                                        
+                                        // Actualizar los datos en la pagina
+                                        fetchData();
+                                        
+                                        setTimeout(() => {
+                                            text.textContent = originalText;
+                                            btn.disabled = false;
+                                        }, 2000);
+                                    }
+                                }
+                                
+                                // Si se alcanzo el maximo de polls sin recibir datos
+                                if (pollCount >= maxPolls) {
+                                    clearInterval(checkForData);
+                                    text.textContent = 'Timeout';
+                                    alert('No se recibieron datos en el tiempo esperado. El ESP32 puede estar desconectado.');
+                                    setTimeout(() => {
+                                        text.textContent = originalText;
+                                        btn.disabled = false;
+                                    }, 2000);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error checking data:', error);
+                                if (pollCount >= maxPolls) {
+                                    clearInterval(checkForData);
+                                    text.textContent = 'Error';
+                                    setTimeout(() => {
+                                        text.textContent = originalText;
+                                        btn.disabled = false;
+                                    }, 2000);
+                                }
+                            });
+                    }, 2000); // Verificar cada 2 segundos
                 })
                 .catch(error => {
                     console.error('Error:', error);
