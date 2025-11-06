@@ -721,8 +721,8 @@ def communication_test():
     try:
         response = {
             'status': 'success',
-            'test_request': communication_test_queue if 'communication_test_queue' in globals() else False,
-            'data_request': data_request_queue if 'data_request_queue' in globals() else False
+            'test_request': communication_test_queue,
+            'data_request': data_request_queue
         }
         
         if communication_test_queue:
