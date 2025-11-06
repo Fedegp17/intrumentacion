@@ -278,18 +278,18 @@ void readSoilMoistureSensor1() {
   // Convert to voltage for display
   float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
   
-  // Convert ADC value to percentage (0-100%)
-  // Most soil moisture sensors work as follows:
-  // - DRY soil (low conductivity) = LOW ADC value = LOW moisture %
-  // - WET soil (high conductivity) = HIGH ADC value = HIGH moisture %
-  // Formula: map ADC value to moisture percentage
-  // Typical range: 1000-1500 (dry) to 2800-3500 (wet) for many sensors
+  // Convert ADC value to percentage (0-100%) - INVERTED
+  // This sensor works inversely:
+  // - DRY soil (low conductivity) = HIGH ADC value = LOW moisture %
+  // - WET soil (high conductivity) = LOW ADC value = HIGH moisture %
+  // Formula: map ADC value to moisture percentage (inverted)
+  // Typical range: 1000-1500 (wet) to 2800-3500 (dry) for many sensors
   // Adjust these values based on your specific sensor calibration
-  const int ADC_MIN = 1000;  // ADC value when soil is completely dry
-  const int ADC_MAX = 3200;  // ADC value when soil is completely wet (in water)
+  const int ADC_MIN = 1000;  // ADC value when soil is completely wet (in water) - LOW ADC = HIGH HUMIDITY
+  const int ADC_MAX = 3200;  // ADC value when soil is completely dry - HIGH ADC = LOW HUMIDITY
   
-  // Map ADC value to 0-100% moisture
-  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 0, 100);
+  // Map ADC value to 0-100% moisture (INVERTED: low ADC = high moisture)
+  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 100, 0);
   
   // Clamp to 0-100%
   if (newMoisture < 0) newMoisture = 0;
@@ -319,18 +319,18 @@ void readSoilMoistureSensor2() {
   // Convert to voltage for display
   float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
   
-  // Convert ADC value to percentage (0-100%)
-  // Most soil moisture sensors work as follows:
-  // - DRY soil (low conductivity) = LOW ADC value = LOW moisture %
-  // - WET soil (high conductivity) = HIGH ADC value = HIGH moisture %
-  // Formula: map ADC value to moisture percentage
-  // Typical range: 1000-1500 (dry) to 2800-3500 (wet) for many sensors
+  // Convert ADC value to percentage (0-100%) - INVERTED
+  // This sensor works inversely:
+  // - DRY soil (low conductivity) = HIGH ADC value = LOW moisture %
+  // - WET soil (high conductivity) = LOW ADC value = HIGH moisture %
+  // Formula: map ADC value to moisture percentage (inverted)
+  // Typical range: 1000-1500 (wet) to 2800-3500 (dry) for many sensors
   // Adjust these values based on your specific sensor calibration
-  const int ADC_MIN = 1000;  // ADC value when soil is completely dry
-  const int ADC_MAX = 3200;  // ADC value when soil is completely wet (in water)
+  const int ADC_MIN = 1000;  // ADC value when soil is completely wet (in water) - LOW ADC = HIGH HUMIDITY
+  const int ADC_MAX = 3200;  // ADC value when soil is completely dry - HIGH ADC = LOW HUMIDITY
   
-  // Map ADC value to 0-100% moisture
-  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 0, 100);
+  // Map ADC value to 0-100% moisture (INVERTED: low ADC = high moisture)
+  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 100, 0);
   
   // Clamp to 0-100%
   if (newMoisture < 0) newMoisture = 0;
