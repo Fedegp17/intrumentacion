@@ -19,6 +19,7 @@ except ImportError:
 SUPABASE_AVAILABLE = False
 insert_sensor_data = None
 get_latest_sensor_data = None
+get_latest_irrigation_prediction = None
 
 try:
     from supabase import create_client, Client
@@ -76,10 +77,23 @@ try:
                 return None
             except Exception as e:
                 return None
+        
+        def get_latest_irrigation_prediction():
+            """Obtiene la última predicción de riego desde Supabase"""
+            try:
+                result = supabase.table('irrigation_predictions').select('*').order('timestamp', desc=True).limit(1).execute()
+                if result.data and len(result.data) > 0:
+                    return result.data[0]
+                return None
+            except Exception as e:
+                return None
     else:
         pass
 except Exception as e:
     pass
+
+# Threshold para predicciones (debe coincidir con el script local)
+THRESHOLD = 0.5
 
 app = Flask(__name__)
 
@@ -963,51 +977,50 @@ def connection_status():
 
 @app.route('/predict-irrigation', methods=['POST'])
 def predict_irrigation():
-    """Predice si se debe regar basado en los últimos datos del sensor"""
+    """
+    Obtiene la última predicción de riego desde Supabase
+    La predicción se hace en la computadora local con scikit-learn
+    """
     try:
-        if not PREDICTOR_AVAILABLE:
+        if not SUPABASE_AVAILABLE or not get_latest_irrigation_prediction:
             return jsonify({
                 'status': 'error',
-                'message': 'Predictor no disponible'
+                'message': 'Supabase no disponible o función de predicción no configurada'
             }), 500
         
-        # Obtener los últimos datos del sensor
-        sensor_data = esp32_data.get('sensor_data', {})
+        # Obtener la última predicción de Supabase
+        prediction_data = get_latest_irrigation_prediction()
         
-        # Verificar que tengamos los datos necesarios
-        required_fields = ['uv_index', 'temperature2', 'humidity2', 'soil_moisture1', 'soil_moisture2']
-        missing_fields = [field for field in required_fields if field not in sensor_data or sensor_data[field] is None]
-        
-        if missing_fields:
+        if not prediction_data:
             return jsonify({
                 'status': 'error',
-                'message': f'Faltan datos del sensor: {", ".join(missing_fields)}',
-                'missing_fields': missing_fields
-            }), 400
+                'message': 'No hay predicciones disponibles. Ejecuta el script local_irrigation_predictor.py primero.',
+                'hint': 'Ejecuta: python local_irrigation_predictor.py'
+            }), 404
         
-        # Obtener el predictor
-        predictor = get_predictor()
-        
-        # Hacer la predicción
-        result = predictor.predict_from_dict(sensor_data)
-        
-        # Agregar información adicional
-        result['status'] = 'success'
-        result['sensor_data_used'] = {
-            'uv_index': sensor_data.get('uv_index'),
-            'temperature2': sensor_data.get('temperature2'),
-            'humidity2': sensor_data.get('humidity2'),
-            'soil_moisture1': sensor_data.get('soil_moisture1'),
-            'soil_moisture2': sensor_data.get('soil_moisture2')
+        # Formatear la respuesta
+        result = {
+            'status': 'success',
+            'prediction': prediction_data.get('prediction', 'No regar'),
+            'score': float(prediction_data.get('score', 0.0)),
+            'confidence': float(prediction_data.get('confidence', 0.0)),
+            'threshold': THRESHOLD if 'THRESHOLD' in globals() else 0.5,
+            'timestamp': prediction_data.get('timestamp', 'N/A'),
+            'sensor_data_used': {
+                'uv_index': prediction_data.get('uv_index'),
+                'temperature2': prediction_data.get('temperature2'),
+                'humidity2': prediction_data.get('humidity2'),
+                'soil_moisture1': prediction_data.get('soil_moisture1'),
+                'soil_moisture2': prediction_data.get('soil_moisture2')
+            }
         }
-        result['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         return jsonify(result)
         
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': f'Error al hacer la predicción: {str(e)}'
+            'message': f'Error al obtener la predicción: {str(e)}'
         }), 500
 
 if __name__ == '__main__':
