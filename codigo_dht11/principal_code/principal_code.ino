@@ -3,8 +3,7 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 
-// WiFi credentials
-// Credenciales guardadas en CREDENCIALES.txt
+// WiFi credentials - MEGACABLE
 const char* ssid = "MEGACABLE-2.4G-F6A3";
 const char* password = "mKyUQGz295";
 
@@ -26,6 +25,30 @@ DHT dht2(DHT_PIN_2, DHT_TYPE);
 #define SOIL_MOISTURE_PIN_2 34  // GPIO 34 (ADC1_CH6) - Second soil moisture sensor
 #define ADC_RESOLUTION 12       // ADC resolution (12-bit = 4096 levels)
 #define ADC_VREF 3.3            // Reference voltage (3.3V)
+
+// Soil moisture calibration points (volts)
+const float SOIL_VOLTAGE_WET = 0.169f;   // Sensor fully wet (≈100% humedad)
+const float SOIL_VOLTAGE_AT20 = 0.932f;  // Sensor alrededor de 20% humedad real
+const float SOIL_VOLTAGE_DRY = 1.122f;   // Sensor casi seco (≈0% humedad)
+
+float calculateSoilMoisturePercentage(float voltage) {
+  // Saturate outside calibration window
+  if (voltage <= SOIL_VOLTAGE_WET) {
+    return 100.0f;
+  }
+
+  if (voltage >= SOIL_VOLTAGE_DRY) {
+    return 0.0f;
+  }
+
+  // Linear interpolation between calibrated points
+  const float MOISTURE_WET = 100.0f;
+  const float MOISTURE_AT20 = 20.0f;
+  const float slope = (MOISTURE_AT20 - MOISTURE_WET) / (SOIL_VOLTAGE_AT20 - SOIL_VOLTAGE_WET);
+
+  float moisture = slope * (voltage - SOIL_VOLTAGE_WET) + MOISTURE_WET;
+  return constrain(moisture, 0.0f, 100.0f);
+}
 
 // UV Sensor configuration (GUVA-S12SD)
 #define UV_PIN 33               // GPIO 33 (ADC1_CH5) - UV sensor analog output
@@ -161,7 +184,13 @@ void connectToWiFi() {
   Serial.print("Connecting to WiFi: ");
   Serial.println(ssid);
   
-  WiFi.begin(ssid, password);
+  if (password != nullptr && password[0] != '\0') {
+    Serial.println("Using secured connection (password provided).");
+    WiFi.begin(ssid, password);
+  } else {
+    Serial.println("Using open network connection (no password).");
+    WiFi.begin(ssid);
+  }
   connectionAttempts = 0;
   
   while (WiFi.status() != WL_CONNECTED && connectionAttempts < 20) {
@@ -278,22 +307,8 @@ void readSoilMoistureSensor1() {
   // Convert to voltage for display
   float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
   
-  // Convert ADC value to percentage (0-100%) - INVERTED
-  // This sensor works inversely:
-  // - DRY soil (low conductivity) = HIGH ADC value = LOW moisture %
-  // - WET soil (high conductivity) = LOW ADC value = HIGH moisture %
-  // Formula: map ADC value to moisture percentage (inverted)
-  // Calibrated with: 0.169V (wet) = ADC ~210 = High humidity
-  // Adjust these values based on your specific sensor calibration
-  const int ADC_MIN = 200;   // ADC value when soil is completely wet (in water) - LOW ADC = HIGH HUMIDITY
-  const int ADC_MAX = 3200;  // ADC value when soil is completely dry - HIGH ADC = LOW HUMIDITY
-  
-  // Map ADC value to 0-100% moisture (INVERTED: low ADC = high moisture)
-  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 100, 0);
-  
-  // Clamp to 0-100%
-  if (newMoisture < 0) newMoisture = 0;
-  if (newMoisture > 100) newMoisture = 100;
+  // Convert ADC value to percentage (0-100%) usando calibración por voltaje
+  float newMoisture = calculateSoilMoisturePercentage(voltage);
   
   Serial.printf("Raw readings - ADC: %d, Voltage: %.3fV, Moisture: %.1f%%\n", 
                 rawValue, voltage, newMoisture);
@@ -319,22 +334,8 @@ void readSoilMoistureSensor2() {
   // Convert to voltage for display
   float voltage = (rawValue * ADC_VREF) / (1 << ADC_RESOLUTION);
   
-  // Convert ADC value to percentage (0-100%) - INVERTED
-  // This sensor works inversely:
-  // - DRY soil (low conductivity) = HIGH ADC value = LOW moisture %
-  // - WET soil (high conductivity) = LOW ADC value = HIGH moisture %
-  // Formula: map ADC value to moisture percentage (inverted)
-  // Calibrated with: 0.169V (wet) = ADC ~210 = High humidity
-  // Adjust these values based on your specific sensor calibration
-  const int ADC_MIN = 200;   // ADC value when soil is completely wet (in water) - LOW ADC = HIGH HUMIDITY
-  const int ADC_MAX = 3200;  // ADC value when soil is completely dry - HIGH ADC = LOW HUMIDITY
-  
-  // Map ADC value to 0-100% moisture (INVERTED: low ADC = high moisture)
-  float newMoisture = map(constrain(rawValue, ADC_MIN, ADC_MAX), ADC_MIN, ADC_MAX, 100, 0);
-  
-  // Clamp to 0-100%
-  if (newMoisture < 0) newMoisture = 0;
-  if (newMoisture > 100) newMoisture = 100;
+  // Convert ADC value to percentage (0-100%) usando calibración por voltaje
+  float newMoisture = calculateSoilMoisturePercentage(voltage);
   
   Serial.printf("Raw readings - ADC: %d, Voltage: %.3fV, Moisture: %.1f%%\n", 
                 rawValue, voltage, newMoisture);
