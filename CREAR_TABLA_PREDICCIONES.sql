@@ -22,7 +22,16 @@ ON irrigation_predictions(timestamp DESC);
 -- Habilitar Row Level Security (RLS)
 ALTER TABLE irrigation_predictions ENABLE ROW LEVEL SECURITY;
 
--- Política para permitir INSERT (desde el script local)
+-- Política para permitir INSERT (desde el script local con anon key)
+DROP POLICY IF EXISTS "Allow insert for anon users" ON irrigation_predictions;
+CREATE POLICY "Allow insert for anon users"
+ON irrigation_predictions
+FOR INSERT
+TO anon
+WITH CHECK (true);
+
+-- Política para permitir INSERT (desde el script local con authenticated)
+DROP POLICY IF EXISTS "Allow insert for authenticated users" ON irrigation_predictions;
 CREATE POLICY "Allow insert for authenticated users"
 ON irrigation_predictions
 FOR INSERT
@@ -30,6 +39,7 @@ TO authenticated
 WITH CHECK (true);
 
 -- Política para permitir SELECT (desde Vercel)
+DROP POLICY IF EXISTS "Allow select for all users" ON irrigation_predictions;
 CREATE POLICY "Allow select for all users"
 ON irrigation_predictions
 FOR SELECT
@@ -37,6 +47,7 @@ TO anon
 USING (true);
 
 -- Política para permitir SELECT a usuarios autenticados
+DROP POLICY IF EXISTS "Allow select for authenticated users" ON irrigation_predictions;
 CREATE POLICY "Allow select for authenticated users"
 ON irrigation_predictions
 FOR SELECT
