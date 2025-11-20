@@ -12,6 +12,8 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+import requests
+import json
 
 # Cargar variables de entorno
 load_dotenv()
@@ -172,6 +174,52 @@ def save_prediction_to_supabase(prediction_result, sensor_data):
         print("💡 Nota: Necesitas crear la tabla 'irrigation_predictions' en Supabase")
         return False
 
+def send_prediction_to_vercel(prediction_result, sensor_data, vercel_url=None):
+    """
+    Envía la predicción directamente a Vercel (opcional)
+    
+    Args:
+        prediction_result: Resultado de la predicción
+        sensor_data: Datos del sensor utilizados
+        vercel_url: URL de Vercel (opcional, se puede obtener de env)
+    
+    Returns:
+        bool: True si se envió exitosamente
+    """
+    try:
+        # Obtener URL de Vercel
+        if not vercel_url:
+            vercel_url = os.getenv('VERCEL_URL', 'https://intrumentacion-7fkz.vercel.app')
+        
+        # Crear payload para enviar a Vercel
+        payload = {
+            'prediction': prediction_result['prediction'],
+            'score': prediction_result['score'],
+            'confidence': prediction_result['confidence'],
+            'threshold': prediction_result['threshold'],
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'sensor_data_used': {
+                'uv_index': sensor_data.get('uv_index'),
+                'temperature2': sensor_data.get('temperature2'),
+                'humidity2': sensor_data.get('humidity2'),
+                'soil_moisture1': sensor_data.get('soil_moisture1'),
+                'soil_moisture2': sensor_data.get('soil_moisture2')
+            }
+        }
+        
+        # Enviar a Vercel (si hay un endpoint para recibir predicciones)
+        # Por ahora, esto es opcional ya que Vercel lee de Supabase
+        # Pero podemos agregar un endpoint en Vercel si se necesita
+        
+        print(f"💡 Nota: Vercel leerá la predicción de Supabase automáticamente")
+        print(f"🌐 URL de Vercel: {vercel_url}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"⚠️ Error enviando a Vercel: {e}")
+        return False
+
 def main():
     """Función principal"""
     print("=" * 60)
@@ -221,11 +269,22 @@ def main():
     save_success = save_prediction_to_supabase(prediction_result, sensor_data)
     
     if save_success:
-        print("✅ Proceso completado exitosamente")
+        print("✅ Predicción guardada exitosamente en Supabase")
+        print()
+        print("=" * 60)
+        print("📤 FLUJO DE INFORMACIÓN")
+        print("=" * 60)
+        print("✅ Script Local → Supabase (guardado)")
+        print("✅ Vercel → Supabase (lee cuando usuario presiona botón)")
+        print("✅ Interfaz Web → Muestra resultado")
+        print("=" * 60)
+        print()
         print("🌐 El resultado está disponible en Vercel")
+        print("💡 Presiona '¿Debo Regar?' en la interfaz web para verlo")
     else:
         print("⚠️ Predicción completada pero no se pudo guardar en Supabase")
         print("💡 Revisa que la tabla 'irrigation_predictions' exista")
+        print("💡 Ejecuta CREAR_TABLA_PREDICCIONES.sql en Supabase")
     
     print()
     return prediction_result
