@@ -6,6 +6,15 @@ import os
 from flask import Flask, request, jsonify, render_template_string
 from datetime import datetime
 
+# Importar el predictor de riego
+try:
+    from irrigation_predictor import get_predictor
+    PREDICTOR_AVAILABLE = True
+except ImportError:
+    PREDICTOR_AVAILABLE = False
+    def get_predictor():
+        return None
+
 # Intentar importar Supabase
 SUPABASE_AVAILABLE = False
 insert_sensor_data = None
@@ -386,6 +395,9 @@ def home():
                     <button class="btn btn-warning" onclick="testCommunication()" style="width: 100%;">
                         <i class="fas fa-wifi"></i> Prueba de Comunicacion
                     </button>
+                    <button class="btn" onclick="predictIrrigation()" id="predict-btn" style="width: 100%; background: linear-gradient(135deg, #28a745, #20c997); color: white;">
+                        <i class="fas fa-seedling"></i> <span id="predict-text">¿Debo Regar?</span>
+                    </button>
                 </div>
             </div>
             
@@ -592,6 +604,65 @@ def home():
                     document.getElementById('status-indicator').style.background = '#ffc107';
                     document.getElementById('status-text').textContent = 'Error';
                 });
+        }
+        
+        function predictIrrigation() {
+            const btn = document.getElementById('predict-btn');
+            const text = document.getElementById('predict-text');
+            const originalText = text.textContent;
+            
+            btn.disabled = true;
+            text.textContent = 'Analizando...';
+            
+            fetch('/predict-irrigation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const prediction = data.prediction;
+                    const score = data.score.toFixed(4);
+                    const confidence = data.confidence.toFixed(1);
+                    
+                    // Crear mensaje con estilo
+                    let message = `Predicción: ${prediction}\n\n`;
+                    message += `Score: ${score}\n`;
+                    message += `Confianza: ${confidence}%\n\n`;
+                    message += `Datos utilizados:\n`;
+                    message += `- UV Index: ${data.sensor_data_used.uv_index}\n`;
+                    message += `- Temperatura 2: ${data.sensor_data_used.temperature2}°C\n`;
+                    message += `- Humedad 2: ${data.sensor_data_used.humidity2}%\n`;
+                    message += `- Humedad Suelo 1: ${data.sensor_data_used.soil_moisture1}%\n`;
+                    message += `- Humedad Suelo 2: ${data.sensor_data_used.soil_moisture2}%`;
+                    
+                    // Mostrar alerta con el resultado
+                    alert(message);
+                    
+                    // Actualizar el texto del botón con el resultado
+                    text.textContent = prediction;
+                    btn.style.background = prediction === 'Regar' 
+                        ? 'linear-gradient(135deg, #28a745, #20c997)' 
+                        : 'linear-gradient(135deg, #6c757d, #5a6268)';
+                    
+                    setTimeout(() => {
+                        text.textContent = originalText;
+                        btn.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                        btn.disabled = false;
+                    }, 5000);
+                } else {
+                    throw new Error(data.message || 'Error en la predicción');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al hacer la predicción: ' + error.message);
+                text.textContent = 'Error';
+                setTimeout(() => {
+                    text.textContent = originalText;
+                    btn.disabled = false;
+                }, 2000);
+            });
         }
         
         // Auto-refresh cada 5 minutos
@@ -889,6 +960,55 @@ def connection_status():
         'last_data_received': last_data.strftime('%Y-%m-%d %H:%M:%S') if last_data else None,
         'seconds_since_last_data': (datetime.now() - last_data).total_seconds() if last_data else None
     })
+
+@app.route('/predict-irrigation', methods=['POST'])
+def predict_irrigation():
+    """Predice si se debe regar basado en los últimos datos del sensor"""
+    try:
+        if not PREDICTOR_AVAILABLE:
+            return jsonify({
+                'status': 'error',
+                'message': 'Predictor no disponible'
+            }), 500
+        
+        # Obtener los últimos datos del sensor
+        sensor_data = esp32_data.get('sensor_data', {})
+        
+        # Verificar que tengamos los datos necesarios
+        required_fields = ['uv_index', 'temperature2', 'humidity2', 'soil_moisture1', 'soil_moisture2']
+        missing_fields = [field for field in required_fields if field not in sensor_data or sensor_data[field] is None]
+        
+        if missing_fields:
+            return jsonify({
+                'status': 'error',
+                'message': f'Faltan datos del sensor: {", ".join(missing_fields)}',
+                'missing_fields': missing_fields
+            }), 400
+        
+        # Obtener el predictor
+        predictor = get_predictor()
+        
+        # Hacer la predicción
+        result = predictor.predict_from_dict(sensor_data)
+        
+        # Agregar información adicional
+        result['status'] = 'success'
+        result['sensor_data_used'] = {
+            'uv_index': sensor_data.get('uv_index'),
+            'temperature2': sensor_data.get('temperature2'),
+            'humidity2': sensor_data.get('humidity2'),
+            'soil_moisture1': sensor_data.get('soil_moisture1'),
+            'soil_moisture2': sensor_data.get('soil_moisture2')
+        }
+        result['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Error al hacer la predicción: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
